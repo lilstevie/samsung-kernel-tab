@@ -1,6 +1,7 @@
-/* linux/arch/arm/plat-s3c/include/plat/regs-otg.h
+/* arch/arm/plat-samsung/include/plat/regs-otg.h
  *
- * Copyright (C) 2004 Herbert Poetzl <herbert@13thfloor.at>
+ * Copyright (c) 2009 Samsung Electronics Co., Ltd.
+ * 	Kyoungil Kim <ki0351.kim@samsung.com>
  *
  * This include file is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -16,7 +17,7 @@
 #define S3C_USBOTG_PHYPWR		S3C_USBOTG_PHYREG(0x0)
 #define S3C_USBOTG_PHYCLK		S3C_USBOTG_PHYREG(0x4)
 #define S3C_USBOTG_RSTCON		S3C_USBOTG_PHYREG(0x8)
-#define S3C_USBOTG_PHY1CON		S3C_USBOTG_PHYREG(0x34)
+#define S3C_USBOTG_PHYTUNE		S3C_USBOTG_PHYREG(0x24)
 
 /* USB2.0 OTG Controller register */
 #define S3C_USBOTGREG(x) ((x) + S3C_VA_OTG)
@@ -120,7 +121,7 @@
 /* S3C_UDC_OTG_GOTGCTL */
 #define B_SESSION_VALID			(0x1<<19)
 #define A_SESSION_VALID			(0x1<<18)
-
+#define SESSION_REQ			(0x1<<1)
 /* S3C_UDC_OTG_GAHBCFG */
 #define PTXFE_HALF			(0<<8)
 #define PTXFE_ZERO			(1<<8)
@@ -138,6 +139,7 @@
 
 /* S3C_UDC_OTG_GRSTCTL */
 #define AHB_MASTER_IDLE			(1u<<31)
+#define HCLK_SOFT_RESET			(0x1<<1)
 #define CORE_SOFT_RESET			(0x1<<0)
 
 /* S3C_UDC_OTG_GINTSTS/S3C_UDC_OTG_GINTMSK core interrupt register */
@@ -164,17 +166,10 @@
 #define HIGH_SPEED_CONTROL_PKT_SIZE	64
 #define HIGH_SPEED_BULK_PKT_SIZE	512
 
-#ifdef CONFIG_CPU_S5P6450
 #define RX_FIFO_SIZE			(4096>>2)
 #define NPTX_FIFO_START_ADDR		RX_FIFO_SIZE
 #define NPTX_FIFO_SIZE			(4096>>2)
-#define PTX_FIFO_SIZE			(1520>>2)
-#else
-#define RX_FIFO_SIZE			(4096>>2)
-#define NPTX_FIFO_START_ADDR		RX_FIFO_SIZE
-#define NPTX_FIFO_SIZE			(4096>>2)
-#define PTX_FIFO_SIZE			(1024>>2)
-#endif
+#define PTX_FIFO_SIZE			(1024>>1)
 
 /* Enumeration speed */
 #define USB_HIGH_30_60MHZ		(0x0<<1)
@@ -198,6 +193,12 @@
 #define TEST_SE0_NAK_MODE		(0x3<<4)
 #define TEST_PACKET_MODE		(0x4<<4)
 #define TEST_FORCE_ENABLE_MODE		(0x5<<4)
+#define REMOTE_WAKEUP			(0x1<<0)
+
+/* S3C_UDC_OTG_DSTS device status register */
+#define SOFFN_MASK			(0x3fff << 8)
+#define SOFFN_SHIFT			(8)
+#define USB_SUSPEND			(0x1<<0)
 
 /* S3C_UDC_OTG_DAINT device all endpoint interrupt register */
 #define DAINT_OUT_BIT			(16)

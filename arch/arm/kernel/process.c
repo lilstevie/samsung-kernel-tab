@@ -35,6 +35,11 @@
 #include <asm/thread_notify.h>
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
+#include <mach/regs-clock.h>
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#include <linux/kernel_sec_common.h>
+#endif
 
 static const char *processor_modes[] = {
   "USER_26", "FIQ_26" , "IRQ_26" , "SVC_26" , "UK4_26" , "UK5_26" , "UK6_26" , "UK7_26" ,
@@ -95,6 +100,12 @@ void arm_machine_restart(char mode, const char *cmd)
 	 * soft boot works.
 	 */
 	setup_mm_for_reboot(mode);
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	kernel_sec_clear_upload_magic_number();  // Clear the magic number because it's normal reboot.
+#endif
+	writel(0x12345678, S5P_INFORM5);  //Reset
+
 
 	/*
 	 * Now call the architecture specific reboot code.

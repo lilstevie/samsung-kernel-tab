@@ -20,33 +20,10 @@ struct mmc_host;
 struct mmc_card;
 struct mmc_ios;
 
-enum cd_types {
-	S3C_SDHCI_CD_INTERNAL,	/* use mmc internal CD line */
-	S3C_SDHCI_CD_EXTERNAL,	/* use external callback */
-	S3C_SDHCI_CD_GPIO,	/* use external gpio pin for CD line */
-	S3C_SDHCI_CD_NONE,	/* no CD line, use polling to detect card */
-	S3C_SDHCI_CD_PERMANENT,	/* no CD line, card permanently wired to host */
-};
-
 /**
  * struct s3c_sdhci_platdata() - Platform device data for Samsung SDHCI
  * @max_width: The maximum number of data bits supported.
  * @host_caps: Standard MMC host capabilities bit field.
- * @cd_type: Type of Card Detection method (see cd_types enum above)
- * @wp_gpio: The gpio number using for WP.
- * @has_wp_gpio: Check using wp_gpio or not.
- * @ext_cd_init: Initialize external card detect subsystem. Called on
- *		 sdhci-s3c driver probe when cd_type == S3C_SDHCI_CD_EXTERNAL.
- *		 notify_func argument is a callback to the sdhci-s3c driver
- *		 that triggers the card detection event. Callback arguments:
- *		 dev is pointer to platform device of the host controller,
- *		 state is new state of the card (0 - removed, 1 - inserted).
- * @ext_cd_cleanup: Cleanup external card detect subsystem. Called on
- *		 sdhci-s3c driver remove when cd_type == S3C_SDHCI_CD_EXTERNAL.
- *		 notify_func argument is the same callback as for ext_cd_init.
- * @ext_cd_gpio: gpio pin used for external CD line, valid only if
- *		 cd_type == S3C_SDHCI_CD_GPIO
- * @ext_cd_gpio_invert: invert values for external CD gpio line
  * @cfg_gpio: Configure the GPIO for a specific card bit-width
  * @cfg_card: Configure the interface for a specific card and speed. This
  *            is necessary the controllers and/or GPIO blocks require the
@@ -60,24 +37,33 @@ enum cd_types {
 struct s3c_sdhci_platdata {
 	unsigned int	max_width;
 	unsigned int	host_caps;
-	enum cd_types	cd_type;
 
 	char		**clocks;	/* set of clock sources */
-
-	int		wp_gpio;
-	int		ext_cd_gpio;
-	bool		ext_cd_gpio_invert;
-	bool		has_wp_gpio;
-	int	(*ext_cd_init)(void (*notify_func)(struct platform_device *,
-						   int state));
-	int	(*ext_cd_cleanup)(void (*notify_func)(struct platform_device *,
-						      int state));
 
 	void	(*cfg_gpio)(struct platform_device *dev, int width);
 	void	(*cfg_card)(struct platform_device *dev,
 			    void __iomem *regbase,
 			    struct mmc_ios *ios,
 			    struct mmc_card *card);
+	void	(*adjust_cfg_card)(struct s3c_sdhci_platdata *pdata, void __iomem *regbase, int rw);
+	int		rx_cfg;
+	int		tx_cfg;
+
+	/* add to deal with EXT_IRQ as a card detect pin */
+	void            (*cfg_ext_cd) (void);
+	unsigned int    (*detect_ext_cd) (void);
+#ifdef CONFIG_MACH_P1
+	void            (*translate_vdd)(struct platform_device *pdev, unsigned int vdd);
+#endif
+	unsigned int    ext_cd;
+
+	/* add to deal with GPIO as a card write protection pin */
+	void            (*cfg_wp) (void);
+	int             (*get_ro) (struct mmc_host *mmc);
+
+        /* add to deal with non-removable device */
+        int     built_in;
+
 };
 
 /**
@@ -88,6 +74,7 @@ struct s3c_sdhci_platdata {
  * The call will copy the platform data, so the board definitions can
  * make the structure itself __initdata.
  */
+extern void s3c_sdhci_set_platdata(void);
 extern void s3c_sdhci0_set_platdata(struct s3c_sdhci_platdata *pd);
 extern void s3c_sdhci1_set_platdata(struct s3c_sdhci_platdata *pd);
 extern void s3c_sdhci2_set_platdata(struct s3c_sdhci_platdata *pd);
@@ -110,19 +97,10 @@ extern void s5pc100_setup_sdhci0_cfg_gpio(struct platform_device *, int w);
 extern void s5pc100_setup_sdhci1_cfg_gpio(struct platform_device *, int w);
 extern void s5pc100_setup_sdhci2_cfg_gpio(struct platform_device *, int w);
 extern void s3c64xx_setup_sdhci2_cfg_gpio(struct platform_device *, int w);
-extern void s5p6450_setup_sdhci0_cfg_gpio(struct platform_device *, int w);
-extern void s5p6450_setup_sdhci1_cfg_gpio(struct platform_device *, int w);
-extern void s5p6450_setup_sdhci2_cfg_gpio(struct platform_device *, int w);
 extern void s5pv210_setup_sdhci0_cfg_gpio(struct platform_device *, int w);
 extern void s5pv210_setup_sdhci1_cfg_gpio(struct platform_device *, int w);
 extern void s5pv210_setup_sdhci2_cfg_gpio(struct platform_device *, int w);
 extern void s5pv210_setup_sdhci3_cfg_gpio(struct platform_device *, int w);
-extern void s5pv310_setup_sdhci0_cfg_gpio(struct platform_device *, int w);
-extern void s5pv310_setup_sdhci1_cfg_gpio(struct platform_device *, int w);
-extern void s5pv310_setup_sdhci2_cfg_gpio(struct platform_device *, int w);
-extern void s5pv310_setup_sdhci3_cfg_gpio(struct platform_device *, int w);
-extern void s3c2416_setup_sdhci0_cfg_gpio(struct platform_device *, int w);
-extern void s3c2416_setup_sdhci1_cfg_gpio(struct platform_device *, int w);
 
 /* S3C6400 SDHCI setup */
 
@@ -218,45 +196,6 @@ static inline void s3c6400_default_sdhci2(void) { }
 
 #endif /* CONFIG_S3C64XX_SETUP_SDHCI */
 
-/* S5P6450 SDHCI setup */
-#ifdef CONFIG_S5P6450_SETUP_SDHCI
-extern char *s5p6450_hsmmc_clksrcs[4];
-
-extern void s5p6450_setup_sdhci_cfg_card(struct platform_device *dev,
-						void __iomem *r,
-						struct mmc_ios *ios,
-						struct mmc_card *card);
-
-static inline void s5p6450_default_sdhci0(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC
-	s3c_hsmmc0_def_platdata.clocks = s5p6450_hsmmc_clksrcs;
-	s3c_hsmmc0_def_platdata.cfg_gpio = s5p6450_setup_sdhci0_cfg_gpio;
-	s3c_hsmmc0_def_platdata.cfg_card = s5p6450_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC */
-}
-static inline void s5p6450_default_sdhci1(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC1
-	s3c_hsmmc1_def_platdata.clocks = s5p6450_hsmmc_clksrcs;
-	s3c_hsmmc1_def_platdata.cfg_gpio = s5p6450_setup_sdhci1_cfg_gpio;
-	s3c_hsmmc1_def_platdata.cfg_card = s5p6450_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC1 */
-}
-static inline void s5p6450_default_sdhci2(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC2
-	s3c_hsmmc2_def_platdata.clocks = s5p6450_hsmmc_clksrcs;
-	s3c_hsmmc2_def_platdata.cfg_gpio = s5p6450_setup_sdhci2_cfg_gpio;
-	s3c_hsmmc2_def_platdata.cfg_card = s5p6450_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC2 */
-}
-#else
-static inline void s5p6450_default_sdhci0(void) { }
-static inline void s5p6450_default_sdhci1(void) { }
-static inline void s5p6450_default_sdhci2(void) { }
-#endif /* CONFIG_S5P6450_SETUP_SDHCI */
-
 /* S5PC100 SDHCI setup */
 
 #ifdef CONFIG_S5PC100_SETUP_SDHCI
@@ -313,9 +252,10 @@ static inline void s5pc100_default_sdhci2(void) { }
 extern char *s5pv210_hsmmc_clksrcs[4];
 
 extern void s5pv210_setup_sdhci_cfg_card(struct platform_device *dev,
-					   void __iomem *r,
-					   struct mmc_ios *ios,
-					   struct mmc_card *card);
+					 void __iomem *r,
+					 struct mmc_ios *ios,
+					 struct mmc_card *card);
+extern void s5pv210_adjust_sdhci_cfg_card(struct s3c_sdhci_platdata *pdata, void __iomem *r, int rw);
 
 #ifdef CONFIG_S3C_DEV_HSMMC
 static inline void s5pv210_default_sdhci0(void)
@@ -323,6 +263,7 @@ static inline void s5pv210_default_sdhci0(void)
 	s3c_hsmmc0_def_platdata.clocks = s5pv210_hsmmc_clksrcs;
 	s3c_hsmmc0_def_platdata.cfg_gpio = s5pv210_setup_sdhci0_cfg_gpio;
 	s3c_hsmmc0_def_platdata.cfg_card = s5pv210_setup_sdhci_cfg_card;
+	s3c_hsmmc0_def_platdata.adjust_cfg_card = s5pv210_adjust_sdhci_cfg_card;
 }
 #else
 static inline void s5pv210_default_sdhci0(void) { }
@@ -334,6 +275,7 @@ static inline void s5pv210_default_sdhci1(void)
 	s3c_hsmmc1_def_platdata.clocks = s5pv210_hsmmc_clksrcs;
 	s3c_hsmmc1_def_platdata.cfg_gpio = s5pv210_setup_sdhci1_cfg_gpio;
 	s3c_hsmmc1_def_platdata.cfg_card = s5pv210_setup_sdhci_cfg_card;
+	s3c_hsmmc1_def_platdata.adjust_cfg_card = s5pv210_adjust_sdhci_cfg_card;
 }
 #else
 static inline void s5pv210_default_sdhci1(void) { }
@@ -345,6 +287,7 @@ static inline void s5pv210_default_sdhci2(void)
 	s3c_hsmmc2_def_platdata.clocks = s5pv210_hsmmc_clksrcs;
 	s3c_hsmmc2_def_platdata.cfg_gpio = s5pv210_setup_sdhci2_cfg_gpio;
 	s3c_hsmmc2_def_platdata.cfg_card = s5pv210_setup_sdhci_cfg_card;
+	s3c_hsmmc2_def_platdata.adjust_cfg_card = s5pv210_adjust_sdhci_cfg_card;
 }
 #else
 static inline void s5pv210_default_sdhci2(void) { }
@@ -356,102 +299,19 @@ static inline void s5pv210_default_sdhci3(void)
 	s3c_hsmmc3_def_platdata.clocks = s5pv210_hsmmc_clksrcs;
 	s3c_hsmmc3_def_platdata.cfg_gpio = s5pv210_setup_sdhci3_cfg_gpio;
 	s3c_hsmmc3_def_platdata.cfg_card = s5pv210_setup_sdhci_cfg_card;
+	s3c_hsmmc3_def_platdata.adjust_cfg_card = s5pv210_adjust_sdhci_cfg_card;
 }
 #else
 static inline void s5pv210_default_sdhci3(void) { }
-#endif /* CONFIG_S3C_DEV_HSMMC3 */
+#endif /* CONFIG_S3C_DEV_HSMMC2 */
 
 #else
 static inline void s5pv210_default_sdhci0(void) { }
 static inline void s5pv210_default_sdhci1(void) { }
 static inline void s5pv210_default_sdhci2(void) { }
 static inline void s5pv210_default_sdhci3(void) { }
-#endif /* CONFIG_S5PC100_SETUP_SDHCI */
+#endif /* CONFIG_S5PV210_SETUP_SDHCI */
 
-/* S5PV310 SDHCI setup */
-#ifdef CONFIG_S5PV310_SETUP_SDHCI
-extern char *s5pv310_hsmmc_clksrcs[4];
-
-extern void s5pv310_setup_sdhci_cfg_card(struct platform_device *dev,
-					   void __iomem *r,
-					   struct mmc_ios *ios,
-					   struct mmc_card *card);
-
-static inline void s5pv310_default_sdhci0(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC
-	s3c_hsmmc0_def_platdata.clocks = s5pv310_hsmmc_clksrcs;
-	s3c_hsmmc0_def_platdata.cfg_gpio = s5pv310_setup_sdhci0_cfg_gpio;
-	s3c_hsmmc0_def_platdata.cfg_card = s5pv310_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC */
-}
-
-static inline void s5pv310_default_sdhci1(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC1
-	s3c_hsmmc1_def_platdata.clocks = s5pv310_hsmmc_clksrcs;
-	s3c_hsmmc1_def_platdata.cfg_gpio = s5pv310_setup_sdhci1_cfg_gpio;
-	s3c_hsmmc1_def_platdata.cfg_card = s5pv310_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC1 */
-}
-
-static inline void s5pv310_default_sdhci2(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC2
-	s3c_hsmmc2_def_platdata.clocks = s5pv310_hsmmc_clksrcs;
-	s3c_hsmmc2_def_platdata.cfg_gpio = s5pv310_setup_sdhci2_cfg_gpio;
-	s3c_hsmmc2_def_platdata.cfg_card = s5pv310_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC2 */
-}
-
-static inline void s5pv310_default_sdhci3(void)
-{
-#ifdef CONFIG_S3C_DEV_HSMMC3
-	s3c_hsmmc3_def_platdata.clocks = s5pv310_hsmmc_clksrcs;
-	s3c_hsmmc3_def_platdata.cfg_gpio = s5pv310_setup_sdhci3_cfg_gpio;
-	s3c_hsmmc3_def_platdata.cfg_card = s5pv310_setup_sdhci_cfg_card;
-#endif /* CONFIG_S3C_DEV_HSMMC3 */
-}
-#else
-static inline void s5pv310_default_sdhci0(void) { }
-static inline void s5pv310_default_sdhci1(void) { }
-static inline void s5pv310_default_sdhci2(void) { }
-static inline void s5pv310_default_sdhci3(void) { }
-#endif /* CONFIG_S5PC100_SETUP_SDHCI */
-
-/* S3C2416 SDHCI setup */
-#ifdef CONFIG_S3C2416_SETUP_SDHCI
-extern char *s3c2416_hsmmc_clksrcs[4];
-
-extern void s3c2416_setup_sdhci_cfg_card(struct platform_device *dev,
-					   void __iomem *r,
-					   struct mmc_ios *ios,
-					   struct mmc_card *card);
-
-#ifdef CONFIG_S3C_DEV_HSMMC
-static inline void s3c2416_default_sdhci0(void)
-{
-	s3c_hsmmc0_def_platdata.clocks = s3c2416_hsmmc_clksrcs;
-	s3c_hsmmc0_def_platdata.cfg_gpio = s3c2416_setup_sdhci0_cfg_gpio;
-	s3c_hsmmc0_def_platdata.cfg_card = s3c2416_setup_sdhci_cfg_card;
-}
-#else
-static inline void s3c2416_default_sdhci0(void) { }
-#endif /* CONFIG_S3C_DEV_HSMMC */
-
-#ifdef CONFIG_S3C_DEV_HSMMC1
-static inline void s3c2416_default_sdhci1(void)
-{
-	s3c_hsmmc1_def_platdata.clocks = s3c2416_hsmmc_clksrcs;
-	s3c_hsmmc1_def_platdata.cfg_gpio = s3c2416_setup_sdhci1_cfg_gpio;
-	s3c_hsmmc1_def_platdata.cfg_card = s3c2416_setup_sdhci_cfg_card;
-}
-#else
-static inline void s3c2416_default_sdhci1(void) { }
-#endif /* CONFIG_S3C_DEV_HSMMC1 */
-
-#endif /* CONFIG_S3C2416_SETUP_SDHCI */
-
-
+extern void sdhci_s3c_force_presence_change(struct platform_device *pdev);
 
 #endif /* __PLAT_S3C_SDHCI_H */

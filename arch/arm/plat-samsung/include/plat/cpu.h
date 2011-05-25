@@ -66,7 +66,11 @@ extern void s3c24xx_init_uartdevs(char *name,
 /* timer for 2410/2440 */
 
 struct sys_timer;
+#if	defined(CONFIG_S5P_HIGH_RES_TIMERS)
+extern struct sys_timer s5p_systimer;
+#else
 extern struct sys_timer s3c24xx_timer;
+#endif
 
 /* system device classes */
 
@@ -80,7 +84,6 @@ extern struct sysdev_class s3c2443_sysclass;
 extern struct sysdev_class s3c6410_sysclass;
 extern struct sysdev_class s3c64xx_sysclass;
 extern struct sysdev_class s5p6440_sysclass;
-extern struct sysdev_class s5p6450_sysclass;
 extern struct sysdev_class s5p6442_sysclass;
 extern struct sysdev_class s5pv210_sysclass;
 

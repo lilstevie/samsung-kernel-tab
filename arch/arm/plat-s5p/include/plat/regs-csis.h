@@ -1,32 +1,34 @@
 /* linux/arch/arm/plat-s5p/include/plat/regs-csis.h
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
- *	http://www.samsung.com/
+ * 		http://www.samsung.com/
  *
- * Register definition file for MIPI-CSI2 Driver
+ * S5PV210 - Register definition file for MIPI-CSI2 Driver
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
 */
 
-#ifndef __ASM_PLAT_REGS_CSIS_H
-#define __ASM_PLAT_REGS_CSIS_H __FILE__
+#ifndef _REGS_CSIS_H
+#define _REGS_CSIS_H
 
-/*
+#define S3C_CSISREG(x)	(x)
+
+/*************************************************************************
  * Registers
-*/
-#define S3C_CSIS_CONTROL	(0x00)
-#define S3C_CSIS_DPHYCTRL	(0x04)
-#define S3C_CSIS_CONFIG		(0x08)
-#define S3C_CSIS_DPHYSTS	(0x0c)
-#define S3C_CSIS_INTMSK		(0x10)
-#define S3C_CSIS_INTSRC		(0x14)
-#define S3C_CSIS_RESOL		(0x2c)
+ ************************************************************************/
+#define S3C_CSIS_CONTROL			S3C_CSISREG(0x00)
+#define S3C_CSIS_DPHYCTRL			S3C_CSISREG(0x04)
+#define S3C_CSIS_CONFIG				S3C_CSISREG(0x08)
+#define S3C_CSIS_DPHYSTS			S3C_CSISREG(0x0c)
+#define S3C_CSIS_INTMSK				S3C_CSISREG(0x10)
+#define S3C_CSIS_INTSRC				S3C_CSISREG(0x14)
+#define S3C_CSIS_RESOL				S3C_CSISREG(0x2c)
 
-/*
+/*************************************************************************
  * Bit Definitions
-*/
+ ************************************************************************/
 /* Control Register */
 #define S3C_CSIS_CONTROL_DPDN_DEFAULT		(0 << 31)
 #define S3C_CSIS_CONTROL_DPDN_SWAP		(1 << 31)
@@ -52,8 +54,6 @@
 #define S3C_CSIS_CONFIG_FORMAT_MASK		(0x1f << 2)
 #define S3C_CSIS_CONFIG_NR_LANE_1		(0 << 0)
 #define S3C_CSIS_CONFIG_NR_LANE_2		(1 << 0)
-#define S3C_CSIS_CONFIG_NR_LANE_3		(1 << 1)
-#define S3C_CSIS_CONFIG_NR_LANE_4		(0x3 << 0)
 #define S3C_CSIS_CONFIG_NR_LANE_MASK		(1 << 0)
 
 /* D-PHY Status Register */
@@ -102,4 +102,4 @@
 #define S3C_CSIS_RESOL_HOR_SHIFT		(16)
 #define S3C_CSIS_RESOL_VER_SHIFT		(0)
 
-#endif /* __ASM_PLAT_REGS_CSIS_H */
+#endif /* _REGS_CSIS_H */

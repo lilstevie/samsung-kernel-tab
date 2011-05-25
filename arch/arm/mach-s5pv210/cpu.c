@@ -32,10 +32,8 @@
 #include <plat/devs.h>
 #include <plat/clock.h>
 #include <plat/s5pv210.h>
-#include <plat/adc-core.h>
 #include <plat/iic-core.h>
 #include <plat/sdhci.h>
-#include <mach/regs-audss.h>
 
 /* Initial IO mappings */
 
@@ -61,11 +59,46 @@ static struct map_desc s5pv210_iodesc[] __initdata = {
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	}, {
+		.virtual	= (unsigned long)S3C_VA_WATCHDOG,
+		.pfn		= __phys_to_pfn(S5P_PA_WDT),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S3C_VA_OTG,
+		.pfn		= __phys_to_pfn(S5PV210_PA_OTG),
+		.length		= SZ_1M,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S3C_VA_OTGSFR,
+		.pfn		= __phys_to_pfn(S5PV210_PA_OTGSFR),
+		.length		= SZ_1M,
+		.type		= MT_DEVICE,
+	},
+#if defined(CONFIG_HRT_RTC)
+	{
+		.virtual	= (unsigned long)S5P_VA_RTC,
+		.pfn		= __phys_to_pfn(S5PV210_PA_RTC),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	},
+#endif
+	{
+		.virtual	= (unsigned long)S5P_VA_DMC0,
+		.pfn		= __phys_to_pfn(S5P_PA_DMC0),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_DMC1,
+		.pfn		= __phys_to_pfn(S5P_PA_DMC1),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
 		.virtual	= (unsigned long)S5P_VA_AUDSS,
 		.pfn		= __phys_to_pfn(S5PV210_PA_AUDSS),
-		.length		= SZ_1K,
+		.length		= SZ_1M,
 		.type		= MT_DEVICE,
-	}
+	},
+
 };
 
 static void s5pv210_idle(void)
@@ -83,23 +116,16 @@ static void s5pv210_idle(void)
 
 void __init s5pv210_map_io(void)
 {
+#ifdef CONFIG_S3C_DEV_ADC
+	s3c_device_adc.name	= "s3c64xx-adc";
+#endif
+
 	iotable_init(s5pv210_iodesc, ARRAY_SIZE(s5pv210_iodesc));
 
 	/* initialise device information early */
-#ifdef CONFIG_S3C_DEV_HSMMC
 	s5pv210_default_sdhci0();
-#endif
-#ifdef CONFIG_S3C_DEV_HSMMC1
 	s5pv210_default_sdhci1();
-#endif
-#ifdef CONFIG_S3C_DEV_HSMMC2
 	s5pv210_default_sdhci2();
-#endif
-#ifdef CONFIG_S3C_DEV_HSMMC3
-	s5pv210_default_sdhci3();
-#endif
-
-	s3c_adc_setname("s3c64xx-adc");
 
 	/* the i2c devices are directly compatible with s3c2440 */
 	s3c_i2c0_setname("s3c2440-i2c");

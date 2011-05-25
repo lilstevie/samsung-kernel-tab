@@ -19,6 +19,7 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -26,6 +27,8 @@
 #include <mach/hardware.h>
 #include <mach/map.h>
 #include <mach/dma.h>
+#include <mach/adc.h>
+
 
 #include <plat/devs.h>
 #include <plat/gpio-cfg.h>
@@ -33,9 +36,406 @@
 #include <plat/fb.h>
 #include <plat/fimc.h>
 #include <plat/csis.h>
-#include <plat/fimg2d.h>
+#include <plat/media.h>
+#include <plat/jpeg.h>
+#include <mach/media.h>
 
-#if defined(CONFIG_VIDEO_MFC5X) || defined(CONFIG_VIDEO_MFC50)
+/* Android Gadget */
+#include <linux/usb/android_composite.h>
+#define S3C_VENDOR_ID			0x18d1
+#define S3C_UMS_PRODUCT_ID		0x4E21
+#define S3C_UMS_ADB_PRODUCT_ID		0x4E22
+#define S3C_RNDIS_PRODUCT_ID		0x4E23
+#define S3C_RNDIS_ADB_PRODUCT_ID	0x4E24
+#define MAX_USB_SERIAL_NUM	17
+
+static char *usb_functions_ums[] = {
+	"usb_mass_storage",
+};
+
+#if !defined(CONFIG_ARIES_NTT) // disable tethering	
+static char *usb_functions_rndis[] = {
+	"rndis",
+};
+#endif
+
+/*
+static char *usb_functions_rndis_adb[] = {
+	"rndis",
+	"adb",
+};
+*/
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* Do not use below compoiste */
+#else
+static char *usb_functions_ums_adb[] = {
+	"usb_mass_storage",
+	"adb",
+};
+#endif
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* soonyong.cho : Variables for samsung composite such as kies, mtp, ums, etc... */
+/* kies mode */
+static char *usb_functions_acm_mtp[] = {
+	"acm",
+	"mtp",
+};
+/* debug mode */
+static char *usb_functions_acm_ums_adb[] = {
+	"acm",
+	"usb_mass_storage",
+	"adb",
+};
+/* mtp only mode */
+static char *usb_functions_mtp[] = {
+	"mtp",
+};
+#endif
+
+static char *usb_functions_all[] = {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* soonyong.cho : Every function driver for samsung composite.
+ *  		  Number of to enable function features have to be same as below.
+ */
+	"acm",
+	"usb_mass_storage",
+	"adb",
+#if !defined(CONFIG_ARIES_NTT) // disable tethering	
+	"rndis",
+#endif	
+	"mtp",
+#else /* original */
+#  ifdef CONFIG_USB_ANDROID_RNDIS
+	"rndis",
+#  endif
+	"usb_mass_storage",
+	"adb",
+#  ifdef CONFIG_USB_ANDROID_ACM
+	"acm",
+#  endif
+#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
+};
+
+
+static struct android_usb_product usb_products[] = {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* soonyong.cho : Please modify below value correctly if you customize composite */
+#  ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE /* USE DEVGURU HOST DRIVER */
+	{
+		.product_id	= SAMSUNG_DEBUG_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_acm_ums_adb),
+		.functions	= usb_functions_acm_ums_adb,
+		.bDeviceClass	= 0xEF,
+		.bDeviceSubClass= 0x02,
+		.bDeviceProtocol= 0x01,
+		.s		= ANDROID_DEBUG_CONFIG_STRING,
+		.mode		= USBSTATUS_ADB,
+	},
+	{
+		.product_id	= SAMSUNG_KIES_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_acm_mtp),
+		.functions	= usb_functions_acm_mtp,
+		.bDeviceClass	= 0xEF,
+		.bDeviceSubClass= 0x02,
+		.bDeviceProtocol= 0x01,
+		.s		= ANDROID_KIES_CONFIG_STRING,
+		.mode		= USBSTATUS_SAMSUNG_KIES,
+	},
+	{
+		.product_id	= SAMSUNG_UMS_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums),
+		.functions	= usb_functions_ums,
+		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+		.s		= ANDROID_UMS_CONFIG_STRING,
+		.mode		= USBSTATUS_UMS,
+	},
+#if !defined(CONFIG_ARIES_NTT) // disable tethering		
+	{
+		.product_id	= SAMSUNG_RNDIS_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
+		.functions	= usb_functions_rndis,
+#    ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
+		.bDeviceClass	= 0xEF,
+		.bDeviceSubClass= 0x02,
+		.bDeviceProtocol= 0x01,
+#    else
+#      ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
+		.bDeviceClass	= USB_CLASS_WIRELESS_CONTROLLER,
+#      else
+		.bDeviceClass	= USB_CLASS_COMM,
+#      endif
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+#    endif
+		.s		= ANDROID_RNDIS_CONFIG_STRING,
+		.mode		= USBSTATUS_VTP,
+	},
+#endif	
+	{
+		.product_id	= SAMSUNG_MTP_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_mtp),
+		.functions	= usb_functions_mtp,
+		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0x01,
+		.s		= ANDROID_MTP_CONFIG_STRING,
+		.mode		= USBSTATUS_MTPONLY,
+	},
+
+#  else  /* USE MCCI HOST DRIVER */
+	{
+		.product_id	= SAMSUNG_DEBUG_PRODUCT_ID, /* change sequence */
+		.num_functions	= ARRAY_SIZE(usb_functions_acm_ums_adb),
+		.functions	= usb_functions_acm_ums_adb,
+		.bDeviceClass	= USB_CLASS_COMM,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+		.s		= ANDROID_DEBUG_CONFIG_STRING,
+		.mode		= USBSTATUS_ADB,
+	},
+	{
+		.product_id	= SAMSUNG_KIES_PRODUCT_ID, /* change sequence */
+		.num_functions	= ARRAY_SIZE(usb_functions_acm_mtp),
+		.functions	= usb_functions_acm_mtp,
+		.bDeviceClass	= USB_CLASS_COMM,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+		.s		= ANDROID_KIES_CONFIG_STRING,
+		.mode		= USBSTATUS_SAMSUNG_KIES,
+
+	},
+	{
+		.product_id	= SAMSUNG_UMS_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums),
+		.functions	= usb_functions_ums,
+		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+		.s		= ANDROID_UMS_CONFIG_STRING,
+		.mode		= USBSTATUS_UMS,
+	},
+#if !defined(CONFIG_ARIES_NTT) // disable tethering		
+	{
+		.product_id	= SAMSUNG_RNDIS_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
+		.functions	= usb_functions_rndis,
+#    ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
+		.bDeviceClass	= USB_CLASS_WIRELESS_CONTROLLER,
+#    else
+		.bDeviceClass	= USB_CLASS_COMM,
+#    endif
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0,
+		.s		= ANDROID_RNDIS_CONFIG_STRING,
+		.mode		= USBSTATUS_VTP,
+	},
+#endif	
+	{
+		.product_id	= SAMSUNG_MTP_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_mtp),
+		.functions	= usb_functions_mtp,
+		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
+		.bDeviceSubClass= 0,
+		.bDeviceProtocol= 0x01,
+		.s		= ANDROID_MTP_CONFIG_STRING,
+		.mode		= USBSTATUS_MTPONLY,
+	},
+#  endif
+#else /* original */
+	{
+		.product_id	= S3C_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums),
+		.functions	= usb_functions_ums,
+	},
+	{
+		.product_id	= S3C_ADB_PRODUCT_ID,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
+		.functions	= usb_functions_ums_adb,
+	},
+#endif
+};
+// serial number should be changed as real device for commercial release
+static char device_serial[MAX_USB_SERIAL_NUM] = "0123456789ABCDEF";
+/* standard android USB platform data */
+
+/* Information should be changed as real product for commercial release */
+static struct android_usb_platform_data android_usb_pdata = {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* soonyong.cho : refered from S1 */
+	.vendor_id		= SAMSUNG_VENDOR_ID,
+	.product_id		= SAMSUNG_KIES_PRODUCT_ID,
+	.manufacturer_name	= "SAMSUNG",
+	.product_name		= "SAMSUNG_Android",
+#else
+	.vendor_id		= S3C_VENDOR_ID,
+	.product_id		= S3C_PRODUCT_ID,
+	.manufacturer_name	= "Android",//"Samsung",
+	.product_name		= "Android",//"Samsung SMDKV210",
+#endif
+	.serial_number		= device_serial,
+	.num_products		= ARRAY_SIZE(usb_products),
+	.products		= usb_products,
+	.num_functions		= ARRAY_SIZE(usb_functions_all),
+	.functions		= usb_functions_all,
+};
+
+static struct usb_ether_platform_data rndis_pdata = {
+	/* ethaddr is filled by board_serialno_setup */
+	.vendorID	= 0x18d1,
+	.vendorDescr	= "Samsung",
+};
+
+struct platform_device s3c_device_rndis = {
+	.name	= "rndis",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &rndis_pdata,
+	},
+};
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+void __init s3c_usb_set_serial(void)
+{
+# ifdef CONFIG_USB_ANDROID_RNDIS
+	int i;
+	char *src;
+# endif
+
+	sprintf(device_serial, "%08X%08X", system_serial_high,
+			system_serial_low);
+# ifdef CONFIG_USB_ANDROID_RNDIS
+	/* create a fake MAC address from our serial number.
+	 * first byte is 0x02 to signify locally administered.
+	 */
+	src = device_serial;
+	rndis_pdata.ethaddr[0] = 0x02;
+	for (i = 0; *src; i++) {
+		/* XOR the USB serial across the remaining bytes */
+		rndis_pdata.ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
+	}
+# endif
+}
+#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
+
+struct platform_device s3c_device_android_usb = {
+	.name	= "android_usb",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &android_usb_pdata,
+	},
+};
+
+static struct usb_mass_storage_platform_data ums_pdata = {
+	.vendor			= "Android",
+	.product		= "UMS Composite",
+	.release		= 1,
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	.nluns			= 2,
+#else
+	.nluns			= 1,
+#endif
+	
+};
+
+struct platform_device s3c_device_usb_mass_storage = {
+	.name	= "usb_mass_storage",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &ums_pdata,
+	},
+};
+
+/* RTC */
+static struct resource s5p_rtc_resource[] = {
+	[0] = {
+		.start = S5P_PA_RTC,
+		.end   = S5P_PA_RTC + 0xff,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_RTC_ALARM,
+		.end   = IRQ_RTC_ALARM,
+		.flags = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start = IRQ_RTC_TIC,
+		.end   = IRQ_RTC_TIC,
+		.flags = IORESOURCE_IRQ
+	}
+};
+
+struct platform_device s5p_device_rtc = {
+	.name             = "s3c2410-rtc",
+	.id               = -1,
+	.num_resources    = ARRAY_SIZE(s5p_rtc_resource),
+	.resource         = s5p_rtc_resource,
+};
+
+/* Keypad interface */
+static struct resource s3c_keypad_resource[] = {
+	[0] = {
+		.start = S3C_PA_KEYPAD,
+		.end   = S3C_PA_KEYPAD + S3C_SZ_KEYPAD - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_KEYPAD,
+		.end   = IRQ_KEYPAD,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+struct platform_device s3c_device_keypad = {
+	.name             = "s3c-keypad",
+	.id               = -1,
+	.num_resources    = ARRAY_SIZE(s3c_keypad_resource),
+	.resource         = s3c_keypad_resource,
+};
+
+#ifdef CONFIG_S5P_ADC
+/* ADCTS */
+static struct resource s3c_adc_resource[] = {
+	[0] = {
+		.start = S3C_PA_ADC,
+		.end   = S3C_PA_ADC + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_PENDN,
+		.end   = IRQ_PENDN,
+		.flags = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start = IRQ_ADC,
+		.end   = IRQ_ADC,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+struct platform_device s3c_device_adc = {
+	.name		  = "s3c-adc",
+	.id               = -1,
+	.num_resources	  = ARRAY_SIZE(s3c_adc_resource),
+	.resource	  = s3c_adc_resource,
+};
+
+void __init s3c_adc_set_platdata(struct s3c_adc_mach_info *pd)
+{
+	struct s3c_adc_mach_info *npd;
+
+	npd = kmalloc(sizeof(*npd), GFP_KERNEL);
+	if (npd) {
+		memcpy(npd, pd, sizeof(*npd));
+		s3c_device_adc.dev.platform_data = npd;
+	} else {
+		printk(KERN_ERR "no memory for ADC platform data\n");
+	}
+}
+#endif /* CONFIG_S5P_ADC */
+
+#if defined(CONFIG_VIDEO_MFC51) || defined(CONFIG_VIDEO_MFC50)
 static struct resource s5p_mfc_resources[] = {
 	[0] = {
 		.start	= S5P_PA_MFC,
@@ -57,75 +457,47 @@ struct platform_device s5p_device_mfc = {
 };
 #endif
 
-/* OneNAND Controller */
-#ifdef CONFIG_MTD_ONENAND
-static struct resource s5p_onenand_resource[] = {
-	[0] = {
-		.start = S5P_PA_ONENAND,
-		.end   = S5P_PA_ONENAND + S5P_SZ_ONENAND - 1,
-		.flags = IORESOURCE_MEM,
-	}
-};
-
-struct platform_device s5p_device_onenand = {
-	.name		= "s5p-onenand",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(s5p_onenand_resource),
-	.resource	= s5p_onenand_resource,
-};
-
-EXPORT_SYMBOL(s5p_device_onenand);
-#endif
-
-#ifdef CONFIG_FB_S3C
+#if defined(CONFIG_S5P_DEV_FB)
 static struct resource s3cfb_resource[] = {
 	[0] = {
-		.start	= S5P_PA_LCD,
-		.end	= S5P_PA_LCD + S5P_SZ_LCD - 1,
-		.flags	= IORESOURCE_MEM,
+		.start = S5P_PA_LCD,
+		.end   = S5P_PA_LCD + S5P_SZ_LCD - 1,
+		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= IRQ_LCD1,
-		.end	= IRQ_LCD1,
-		.flags	= IORESOURCE_IRQ,
+		.start = IRQ_LCD1,
+		.end   = IRQ_LCD1,
+		.flags = IORESOURCE_IRQ,
 	},
 	[2] = {
-		.start	= IRQ_LCD0,
-		.end	= IRQ_LCD0,
-		.flags	= IORESOURCE_IRQ,
+		.start = IRQ_LCD0,
+		.end   = IRQ_LCD0,
+		.flags = IORESOURCE_IRQ,
 	},
 };
 
 static u64 fb_dma_mask = 0xffffffffUL;
 
 struct platform_device s3c_device_fb = {
-	.name		= "s3cfb",
-#if defined(CONFIG_ARCH_S5PV310)
-	.id		= 0,
-#else
-	.id		= -1,
-#endif
-	.num_resources	= ARRAY_SIZE(s3cfb_resource),
-	.resource	= s3cfb_resource,
-	.dev		= {
+	.name		  = "s3cfb",
+	.id		  = -1,
+	.num_resources	  = ARRAY_SIZE(s3cfb_resource),
+	.resource	  = s3cfb_resource,
+	.dev		  = {
 		.dma_mask		= &fb_dma_mask,
 		.coherent_dma_mask	= 0xffffffffUL
 	}
 };
 
 static struct s3c_platform_fb default_fb_data __initdata = {
-#if defined(CONFIG_ARCH_S5PV310)
-	.hw_ver = 0x70,
+#if defined(CONFIG_CPU_S5PV210_EVT0)
+	.hw_ver	= 0x60,
 #else
 	.hw_ver	= 0x62,
 #endif
-	.nr_wins	= 5,
-#if defined(CONFIG_FB_S3C_DEFAULT_WINDOW)
-	.default_win	= CONFIG_FB_S3C_DEFAULT_WINDOW,
-#else
-	.default_win	= 0,
-#endif
-	.swap		= FB_SWAP_WORD | FB_SWAP_HWORD,
+	.nr_wins = 5,
+	.default_win = CONFIG_FB_S3C_DEFAULT_WINDOW,
+	.swap = FB_SWAP_WORD | FB_SWAP_HWORD,
 };
 
 void __init s3cfb_set_platdata(struct s3c_platform_fb *pd)
@@ -143,20 +515,17 @@ void __init s3cfb_set_platdata(struct s3c_platform_fb *pd)
 		for (i = 0; i < npd->nr_wins; i++)
 			npd->nr_buffers[i] = 1;
 
-#if defined(CONFIG_FB_S3C_NR_BUFFERS)
 		npd->nr_buffers[npd->default_win] = CONFIG_FB_S3C_NR_BUFFERS;
-#else
-		npd->nr_buffers[npd->default_win] = 1;
-#endif
 
 		s3cfb_get_clk_name(npd->clk_name);
-		npd->cfg_gpio = s3cfb_cfg_gpio;
-		npd->backlight_on = s3cfb_backlight_on;
-		npd->backlight_off = s3cfb_backlight_off;
-		npd->lcd_on = s3cfb_lcd_on;
-		npd->lcd_off = s3cfb_lcd_off;
+		npd->backlight_onoff = NULL;
 		npd->clk_on = s3cfb_clk_on;
 		npd->clk_off = s3cfb_clk_off;
+
+		/* starting physical address of memory region */
+		npd->pmem_start = s5p_get_media_memory_bank(S5P_MDEV_FIMD, 1);
+		/* size of memory region */
+		npd->pmem_size = s5p_get_media_memsize_bank(S5P_MDEV_FIMD, 1);
 
 		s3c_device_fb.dev.platform_data = npd;
 	}
@@ -186,15 +555,7 @@ struct platform_device s3c_device_fimc0 = {
 
 static struct s3c_platform_fimc default_fimc0_data __initdata = {
 	.default_cam	= CAMERA_PAR_A,
-#if defined(CONFIG_CPU_S5PV210_EVT1)
 	.hw_ver	= 0x45,
-#elif defined(CONFIG_CPU_S5P6450)
-	.hw_ver = 0x50,
-#elif defined(CONFIG_CPU_S5PV310)
-	.hw_ver = 0x51,
-#else
-	.hw_ver	= 0x43,
-#endif
 };
 
 void __init s3c_fimc0_set_platdata(struct s3c_platform_fimc *pd)
@@ -216,21 +577,18 @@ void __init s3c_fimc0_set_platdata(struct s3c_platform_fimc *pd)
 
 		if (!npd->clk_off)
 			npd->clk_off = s3c_fimc_clk_off;
-#if defined(CONFIG_CPU_S5PV210_EVT1)
+
 		npd->hw_ver = 0x45;
-#elif defined(CONFIG_CPU_S5P6450)
-		npd->hw_ver = 0x50;
-#elif defined(CONFIG_CPU_S5PV310)
-		npd->hw_ver = 0x51;
-#else
-		npd->hw_ver = 0x43;
-#endif
+
+		/* starting physical address of memory region */
+		npd->pmem_start = s5p_get_media_memory_bank(S5P_MDEV_FIMC0, 1);
+		/* size of memory region */
+		npd->pmem_size = s5p_get_media_memsize_bank(S5P_MDEV_FIMC0, 1);
 
 		s3c_device_fimc0.dev.platform_data = npd;
 	}
 }
 
-#if !defined(CONFIG_CPU_S5P6450)
 static struct resource s3c_fimc1_resource[] = {
 	[0] = {
 		.start	= S5P_PA_FIMC1,
@@ -253,13 +611,7 @@ struct platform_device s3c_device_fimc1 = {
 
 static struct s3c_platform_fimc default_fimc1_data __initdata = {
 	.default_cam	= CAMERA_PAR_A,
-#if defined(CONFIG_CPU_S5PV210_EVT1)
 	.hw_ver	= 0x50,
-#elif defined(CONFIG_CPU_S5PV310)
-	.hw_ver = 0x51,
-#else
-	.hw_ver	= 0x43,
-#endif
 };
 
 void __init s3c_fimc1_set_platdata(struct s3c_platform_fimc *pd)
@@ -281,13 +633,13 @@ void __init s3c_fimc1_set_platdata(struct s3c_platform_fimc *pd)
 
 		if (!npd->clk_off)
 			npd->clk_off = s3c_fimc_clk_off;
-#if defined(CONFIG_CPU_S5PV210_EVT1)
+
 		npd->hw_ver = 0x50;
-#elif defined(CONFIG_CPU_S5PV310)
-		npd->hw_ver = 0x51;
-#else
-		npd->hw_ver = 0x43;
-#endif
+
+		/* starting physical address of memory region */
+		npd->pmem_start = s5p_get_media_memory_bank(S5P_MDEV_FIMC1, 1);
+		/* size of memory region */
+		npd->pmem_size = s5p_get_media_memsize_bank(S5P_MDEV_FIMC1, 1);
 
 		s3c_device_fimc1.dev.platform_data = npd;
 	}
@@ -315,13 +667,7 @@ struct platform_device s3c_device_fimc2 = {
 
 static struct s3c_platform_fimc default_fimc2_data __initdata = {
 	.default_cam	= CAMERA_PAR_A,
-#if defined(CONFIG_CPU_S5PV210_EVT1)
 	.hw_ver	= 0x45,
-#elif defined(CONFIG_CPU_S5PV310)
-	.hw_ver	= 0x51,
-#else
-	.hw_ver	= 0x43,
-#endif
 };
 
 void __init s3c_fimc2_set_platdata(struct s3c_platform_fimc *pd)
@@ -343,159 +689,32 @@ void __init s3c_fimc2_set_platdata(struct s3c_platform_fimc *pd)
 
 		if (!npd->clk_off)
 			npd->clk_off = s3c_fimc_clk_off;
-#if defined(CONFIG_CPU_S5PV210_EVT1)
+
 		npd->hw_ver = 0x45;
-#elif defined(CONFIG_CPU_S5PV310)
-		npd->hw_ver = 0x51;
-#else
-		npd->hw_ver = 0x43;
-#endif
+
+		/* starting physical address of memory region */
+		npd->pmem_start = s5p_get_media_memory_bank(S5P_MDEV_FIMC2, 1);
+		/* size of memory region */
+		npd->pmem_size = s5p_get_media_memsize_bank(S5P_MDEV_FIMC2, 1);
 
 		s3c_device_fimc2.dev.platform_data = npd;
 	}
 }
 
-#endif
-#if defined(CONFIG_CPU_S5PV310)
-static struct resource s3c_fimc3_resource[] = {
+static struct resource s3c_ipc_resource[] = {
 	[0] = {
-		.start	= S5P_PA_FIMC3,
-		.end	= S5P_PA_FIMC3 + S5P_SZ_FIMC3 - 1,
+		.start	= S5P_PA_IPC,
+		.end	= S5P_PA_IPC + S5P_SZ_IPC - 1,
 		.flags	= IORESOURCE_MEM,
 	},
-	[1] = {
-		.start	= IRQ_FIMC3,
-		.end	= IRQ_FIMC3,
-		.flags	= IORESOURCE_IRQ,
-	},
 };
 
-struct platform_device s3c_device_fimc3 = {
-	.name		= "s3c-fimc",
-	.id		= 3,
-	.num_resources	= ARRAY_SIZE(s3c_fimc3_resource),
-	.resource	= s3c_fimc3_resource,
+struct platform_device s3c_device_ipc = {
+	.name		= "s3c-ipc",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(s3c_ipc_resource),
+	.resource	= s3c_ipc_resource,
 };
-
-static struct s3c_platform_fimc default_fimc3_data __initdata = {
-	.default_cam	= CAMERA_PAR_A,
-	.hw_ver	= 0x51,
-};
-
-void __init s3c_fimc3_set_platdata(struct s3c_platform_fimc *pd)
-{
-	struct s3c_platform_fimc *npd;
-
-	if (!pd)
-		pd = &default_fimc3_data;
-
-	npd = kmemdup(pd, sizeof(struct s3c_platform_fimc), GFP_KERNEL);
-	if (!npd)
-		printk(KERN_ERR "%s: no memory for platform data\n", __func__);
-	else {
-		if (!npd->cfg_gpio)
-			npd->cfg_gpio = s3c_fimc3_cfg_gpio;
-
-		if (!npd->clk_on)
-			npd->clk_on = s3c_fimc_clk_on;
-
-		if (!npd->clk_off)
-			npd->clk_off = s3c_fimc_clk_off;
-		npd->hw_ver = 0x51;
-
-		s3c_device_fimc3.dev.platform_data = npd;
-	}
-}
-#endif
-#ifdef CONFIG_VIDEO_FIMC_MIPI
-#if defined(CONFIG_CPU_S5PV310)
-static struct resource s3c_csis0_resource[] = {
-	[0] = {
-		.start	= S5P_PA_CSIS0,
-		.end	= S5P_PA_CSIS0 + S5P_SZ_CSIS0 - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_MIPICSI0,
-		.end	= IRQ_MIPICSI0,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device s3c_device_csis0 = {
-	.name		= "s3c-csis",
-	.id		= 0,
-	.num_resources	= ARRAY_SIZE(s3c_csis0_resource),
-	.resource	= s3c_csis0_resource,
-};
-
-static struct s3c_platform_csis default_csis0_data __initdata = {
-	.srclk_name	= "mout_mpll",
-	.clk_name	= "sclk_csis",
-	.clk_rate	= 166000000,
-};
-
-void __init s3c_csis0_set_platdata(struct s3c_platform_csis *pd)
-{
-	struct s3c_platform_csis *npd;
-
-	if (!pd)
-		pd = &default_csis0_data;
-
-	npd = kmemdup(pd, sizeof(struct s3c_platform_csis), GFP_KERNEL);
-	if (!npd)
-		printk(KERN_ERR "%s: no memory for platform data\n", __func__);
-
-	npd->cfg_gpio = s3c_csis0_cfg_gpio;
-	npd->cfg_phy_global = s3c_csis0_cfg_phy_global;
-	npd->clk_on = s3c_csis_clk_on;
-	npd->clk_off = s3c_csis_clk_off;
-	s3c_device_csis0.dev.platform_data = npd;
-}
-static struct resource s3c_csis1_resource[] = {
-	[0] = {
-		.start	= S5P_PA_CSIS1,
-		.end	= S5P_PA_CSIS1 + S5P_SZ_CSIS1 - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_MIPICSI1,
-		.end	= IRQ_MIPICSI1,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device s3c_device_csis1 = {
-	.name		= "s3c-csis",
-	.id		= 1,
-	.num_resources	= ARRAY_SIZE(s3c_csis1_resource),
-	.resource	= s3c_csis1_resource,
-};
-
-static struct s3c_platform_csis default_csis1_data __initdata = {
-	.srclk_name	= "mout_mpll",
-	.clk_name	= "sclk_csis",
-	.clk_rate	= 166000000,
-};
-
-void __init s3c_csis1_set_platdata(struct s3c_platform_csis *pd)
-{
-	struct s3c_platform_csis *npd;
-
-	if (!pd)
-		pd = &default_csis1_data;
-
-	npd = kmemdup(pd, sizeof(struct s3c_platform_csis), GFP_KERNEL);
-	if (!npd)
-		printk(KERN_ERR "%s: no memory for platform data\n", __func__);
-
-	npd->cfg_gpio = s3c_csis1_cfg_gpio;
-	npd->cfg_phy_global = s3c_csis1_cfg_phy_global;
-	npd->clk_on = s3c_csis_clk_on;
-	npd->clk_off = s3c_csis_clk_off;
-	s3c_device_csis1.dev.platform_data = npd;
-}
-#else
 static struct resource s3c_csis_resource[] = {
 	[0] = {
 		.start	= S5P_PA_CSIS,
@@ -535,21 +754,37 @@ void __init s3c_csis_set_platdata(struct s3c_platform_csis *pd)
 
 	npd->cfg_gpio = s3c_csis_cfg_gpio;
 	npd->cfg_phy_global = s3c_csis_cfg_phy_global;
-	npd->clk_on = s3c_csis_clk_on;
-	npd->clk_off = s3c_csis_clk_off;
 
 	s3c_device_csis.dev.platform_data = npd;
 }
 #endif
-#endif
-#endif /* CONFIG_VIDEO_FIMC */
 
-#ifdef CONFIG_VIDEO_JPEG
 /* JPEG controller  */
-static struct resource s5p_jpeg_resource[] = {
+static struct s3c_platform_jpeg default_jpeg_data __initdata = {
+	.max_main_width		= 2560,
+	.max_main_height	= 1920,
+	.max_thumb_width	= 0,
+	.max_thumb_height	= 0,
+};
+
+void __init s3c_jpeg_set_platdata(struct s3c_platform_jpeg *pd)
+{
+	struct s3c_platform_jpeg *npd;
+
+	if (!pd)
+		pd = &default_jpeg_data;
+
+	npd = kmemdup(pd, sizeof(struct s3c_platform_jpeg), GFP_KERNEL);
+	if (!npd)
+		printk(KERN_ERR "%s: no memory for platform data\n", __func__);
+	else
+		s3c_device_jpeg.dev.platform_data = npd;
+}
+
+static struct resource s3c_jpeg_resource[] = {
 	[0] = {
-		.start = S5P_PA_JPEG,
-		.end   = S5P_PA_JPEG + S5P_SZ_JPEG - 1,
+		.start = S5PV210_PA_JPEG,
+		.end   = S5PV210_PA_JPEG + S5PV210_SZ_JPEG - 1,
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
@@ -559,16 +794,24 @@ static struct resource s5p_jpeg_resource[] = {
 	}
 };
 
-struct platform_device s5p_device_jpeg = {
-	.name             = "s5p-jpeg",
+struct platform_device s3c_device_jpeg = {
+	.name             = "s3c-jpg",
 	.id               = -1,
-	.num_resources    = ARRAY_SIZE(s5p_jpeg_resource),
-	.resource         = s5p_jpeg_resource,
+	.num_resources    = ARRAY_SIZE(s3c_jpeg_resource),
+	.resource         = s3c_jpeg_resource,
 };
-EXPORT_SYMBOL(s5p_device_jpeg);
-#endif /* CONFIG_VIDEO_JPEG */
 
-#ifdef CONFIG_VIDEO_ROTATOR
+/* G3D */
+struct platform_device s3c_device_g3d = {
+	.name		= "pvrsrvkm",
+	.id		= -1,
+};
+
+struct platform_device s3c_device_lcd = {
+	.name		= "s3c_lcd",
+	.id		= -1,
+};
+
 /* rotator interface */
 static struct resource s5p_rotator_resource[] = {
 	[0] = {
@@ -589,69 +832,57 @@ struct platform_device s5p_device_rotator = {
 	.num_resources	= ARRAY_SIZE(s5p_rotator_resource),
 	.resource	= s5p_rotator_resource
 };
-EXPORT_SYMBOL(s5p_device_rotator);
-#endif
 
-#if defined(CONFIG_VIDEO_TV20) || defined(CONFIG_VIDEO_TV30)
 /* TVOUT interface */
-static struct resource s5p_tv_resources[] = {
+static struct resource s5p_tvout_resources[] = {
 	[0] = {
 		.start  = S5P_PA_TVENC,
 		.end    = S5P_PA_TVENC + S5P_SZ_TVENC - 1,
 		.flags  = IORESOURCE_MEM,
-		.name	= "s5p-sdo"
 	},
 	[1] = {
 		.start  = S5P_PA_VP,
 		.end    = S5P_PA_VP + S5P_SZ_VP - 1,
 		.flags  = IORESOURCE_MEM,
-		.name	= "s5p-vp"
 	},
 	[2] = {
 		.start  = S5P_PA_MIXER,
 		.end    = S5P_PA_MIXER + S5P_SZ_MIXER - 1,
 		.flags  = IORESOURCE_MEM,
-		.name	= "s5p-mixer"
 	},
 	[3] = {
 		.start  = S5P_PA_HDMI,
 		.end    = S5P_PA_HDMI + S5P_SZ_HDMI - 1,
 		.flags  = IORESOURCE_MEM,
-		.name	= "s5p-hdmi"
 	},
 	[4] = {
 		.start  = S5P_I2C_HDMI_PHY,
 		.end    = S5P_I2C_HDMI_PHY + S5P_I2C_HDMI_SZ_PHY - 1,
 		.flags  = IORESOURCE_MEM,
-		.name	= "s5p-i2c-hdmi-phy"
 	},
 	[5] = {
 		.start  = IRQ_MIXER,
 		.end    = IRQ_MIXER,
 		.flags  = IORESOURCE_IRQ,
-		.name	= "s5p-mixer"
 	},
 	[6] = {
 		.start  = IRQ_HDMI,
 		.end    = IRQ_HDMI,
 		.flags  = IORESOURCE_IRQ,
-		.name	= "s5p-hdmi"
 	},
 	[7] = {
 		.start  = IRQ_TVENC,
 		.end    = IRQ_TVENC,
 		.flags  = IORESOURCE_IRQ,
-		.name	= "s5p-sdo"
 	},
 };
 
 struct platform_device s5p_device_tvout = {
-	.name           = "s5p-tv",
+	.name           = "s5p-tvout",
 	.id             = -1,
-	.num_resources  = ARRAY_SIZE(s5p_tv_resources),
-	.resource       = s5p_tv_resources,
+	.num_resources  = ARRAY_SIZE(s5p_tvout_resources),
+	.resource       = s5p_tvout_resources,
 };
-EXPORT_SYMBOL(s5p_device_tvout);
 
 /* CEC */
 static struct resource s5p_cec_resources[] = {
@@ -673,15 +904,12 @@ struct platform_device s5p_device_cec = {
 	.num_resources  = ARRAY_SIZE(s5p_cec_resources),
 	.resource       = s5p_cec_resources,
 };
-EXPORT_SYMBOL(s5p_device_cec);
 
 /* HPD */
 struct platform_device s5p_device_hpd = {
 	.name           = "s5p-hpd",
 	.id             = -1,
 };
-EXPORT_SYMBOL(s5p_device_hpd);
-#endif
 
 #ifdef CONFIG_USB_SUPPORT
 #ifdef CONFIG_USB_ARCH_HAS_EHCI
@@ -711,7 +939,6 @@ struct platform_device s3c_device_usb_ehci = {
 		.coherent_dma_mask = 0xffffffffUL
 	}
 };
-EXPORT_SYMBOL(s3c_device_usb_ehci);
 #endif /* CONFIG_USB_ARCH_HAS_EHCI */
 
 #ifdef CONFIG_USB_ARCH_HAS_OHCI
@@ -741,14 +968,13 @@ struct platform_device s3c_device_usb_ohci = {
 		.coherent_dma_mask = 0xffffffffUL
 	}
 };
-EXPORT_SYMBOL(s3c_device_usb_ohci);
 #endif /* CONFIG_USB_ARCH_HAS_EHCI */
 
 /* USB Device (Gadget)*/
 static struct resource s3c_usbgadget_resource[] = {
 	[0] = {
-		.start	= S5P_PA_OTG,
-		.end	= S5P_PA_OTG + S5P_SZ_OTG - 1,
+		.start	= S3C_PA_OTG,
+		.end	= S3C_PA_OTG + S3C_SZ_OTG - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
@@ -764,223 +990,5 @@ struct platform_device s3c_device_usbgadget = {
 	.num_resources	= ARRAY_SIZE(s3c_usbgadget_resource),
 	.resource	= s3c_usbgadget_resource,
 };
-EXPORT_SYMBOL(s3c_device_usbgadget);
 #endif
 
-#ifdef CONFIG_VIDEO_FIMG2D
-static struct resource s5p_fimg2d_resource[] = {
-	[0] = {
-		.start	= S5P_PA_FIMG2D,
-		.end	= S5P_PA_FIMG2D + S5P_SZ_FIMG2D - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_FIMG2D,
-		.end	= IRQ_FIMG2D,
-		.flags	= IORESOURCE_IRQ,
-	}
-};
-
-struct platform_device s5p_device_fimg2d = {
-	.name		= "s5p-fimg2d",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(s5p_fimg2d_resource),
-	.resource	= s5p_fimg2d_resource
-};
-EXPORT_SYMBOL(s5p_device_fimg2d);
-
-static struct fimg2d_platdata default_fimg2d_data __initdata = {
-	.parent_clkname = "mout_g2d0",
-	.clkname = "sclk_fimg2d",
-	.gate_clkname = "fimg2d",
-	.clkrate = 250 * 1000000,
-};
-
-void __init s5p_fimg2d_set_platdata(struct fimg2d_platdata *pd)
-{
-	struct fimg2d_platdata *npd;
-
-	if (!pd)
-		pd = &default_fimg2d_data;
-
-	npd = kmemdup(pd, sizeof(*pd), GFP_KERNEL);
-	if (!npd)
-		printk(KERN_ERR "no memory for fimg2d platform data\n");
-	else
-		s5p_device_fimg2d.dev.platform_data = npd;
-}
-#endif
-
-#ifdef CONFIG_S5P_SYSMMU
-/* SYSMMU Device */
-static struct resource s5p_sysmmu_resource[] = {
-	[0] = {
-		.start	= S5P_PA_SYSMMU_MDMA,
-		.end	= S5P_PA_SYSMMU_MDMA + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= IRQ_SYSMMU_MDMA0_0,
-		.end	= IRQ_SYSMMU_MDMA0_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[2] = {
-		.start	= S5P_PA_SYSMMU_SSS,
-		.end	= S5P_PA_SYSMMU_SSS + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[3] = {
-		.start	= IRQ_SYSMMU_SSS_0,
-		.end	= IRQ_SYSMMU_SSS_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[4] = {
-		.start	= S5P_PA_SYSMMU_FIMC0,
-		.end	= S5P_PA_SYSMMU_FIMC0 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[5] = {
-		.start	= IRQ_SYSMMU_FIMC0_0,
-		.end	= IRQ_SYSMMU_FIMC0_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[6] = {
-		.start	= S5P_PA_SYSMMU_FIMC1,
-		.end	= S5P_PA_SYSMMU_FIMC1 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[7] = {
-		.start	= IRQ_SYSMMU_FIMC1_0,
-		.end	= IRQ_SYSMMU_FIMC1_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[8] = {
-		.start	= S5P_PA_SYSMMU_FIMC2,
-		.end	= S5P_PA_SYSMMU_FIMC2 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[9] = {
-		.start	= IRQ_SYSMMU_FIMC2_0,
-		.end	= IRQ_SYSMMU_FIMC2_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[10] = {
-		.start	= S5P_PA_SYSMMU_FIMC3,
-		.end	= S5P_PA_SYSMMU_FIMC3 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[11] = {
-		.start	= IRQ_SYSMMU_FIMC3_0,
-		.end	= IRQ_SYSMMU_FIMC3_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[12] = {
-		.start	= S5P_PA_SYSMMU_JPEG,
-		.end	= S5P_PA_SYSMMU_JPEG + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[13] = {
-		.start	= IRQ_SYSMMU_JPEG_0,
-		.end	= IRQ_SYSMMU_JPEG_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[14] = {
-		.start	= S5P_PA_SYSMMU_FIMD0,
-		.end	= S5P_PA_SYSMMU_FIMD0 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[15] = {
-		.start	= IRQ_SYSMMU_LCD0_M0_0,
-		.end	= IRQ_SYSMMU_LCD0_M0_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[16] = {
-		.start	= S5P_PA_SYSMMU_FIMD1,
-		.end	= S5P_PA_SYSMMU_FIMD1 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[17] = {
-		.start	= IRQ_SYSMMU_LCD1_M1_0,
-		.end	= IRQ_SYSMMU_LCD1_M1_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[18] = {
-		.start	= S5P_PA_SYSMMU_PCIe,
-		.end	= S5P_PA_SYSMMU_PCIe + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[19] = {
-		.start	= IRQ_SYSMMU_PCIE_0,
-		.end	= IRQ_SYSMMU_PCIE_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[20] = {
-		.start	= S5P_PA_SYSMMU_G2D,
-		.end	= S5P_PA_SYSMMU_G2D + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[21] = {
-		.start	= IRQ_SYSMMU_2D_0,
-		.end	= IRQ_SYSMMU_2D_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[22] = {
-		.start	= S5P_PA_SYSMMU_ROTATOR,
-		.end	= S5P_PA_SYSMMU_ROTATOR + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[23] = {
-		.start	= IRQ_SYSMMU_ROTATOR_0,
-		.end	= IRQ_SYSMMU_ROTATOR_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[24] = {
-		.start	= S5P_PA_SYSMMU_MDMA2,
-		.end	= S5P_PA_SYSMMU_MDMA2 + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[25] = {
-		.start	= IRQ_SYSMMU_MDMA1_0,
-		.end	= IRQ_SYSMMU_MDMA1_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[26] = {
-		.start	= S5P_PA_SYSMMU_TV,
-		.end	= S5P_PA_SYSMMU_TV + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[27] = {
-		.start	= IRQ_SYSMMU_TV_M0_0,
-		.end	= IRQ_SYSMMU_TV_M0_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[28] = {
-		.start	= S5P_PA_SYSMMU_MFC_L,
-		.end	= S5P_PA_SYSMMU_MFC_L + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[29] = {
-		.start	= IRQ_SYSMMU_MFC_M0_0,
-		.end	= IRQ_SYSMMU_MFC_M0_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-	[30] = {
-		.start	= S5P_PA_SYSMMU_MFC_R,
-		.end	= S5P_PA_SYSMMU_MFC_R + S5P_SZ_SYSMMU - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	[31] = {
-		.start	= IRQ_SYSMMU_MFC_M1_0,
-		.end	= IRQ_SYSMMU_MFC_M1_0,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device s5p_device_sysmmu = {
-	.name		= "s5p-sysmmu",
-	.id		= 32,
-	.num_resources	= ARRAY_SIZE(s5p_sysmmu_resource),
-	.resource	= s5p_sysmmu_resource,
-};
-EXPORT_SYMBOL(s5p_device_sysmmu);
-#endif

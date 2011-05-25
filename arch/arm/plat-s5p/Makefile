@@ -15,9 +15,25 @@ obj-				:=
 obj-y				+= dev-uart.o
 obj-y				+= cpu.o
 obj-y				+= clock.o
-obj-y				+= devs.o
 obj-y				+= irq.o
+obj-y				+= devs.o
 obj-y				+= bootmem.o
-obj-$(CONFIG_S5P_EXT_INT)	+= irq-eint.o
+obj-$(CONFIG_S5P_EXT_INT)	+= irq-eint.o irq-eint-group.o
 
-obj-$(CONFIG_S5P_SYSMMU)	+= sysmmu.o
+# PM support
+
+# PM support
+
+obj-$(CONFIG_PM)		+= pm.o
+obj-$(CONFIG_PM)		+= irq-pm.o
+
+ifndef CONFIG_S5P_HIGH_RES_TIMERS
+obj-$(CONFIG_SYSTIMER_S5P)	+= systimer-s5p.o
+else
+ifdef CONFIG_HRT_RTC
+obj-y				+= hr-time-rtc.o
+endif
+endif
+
+obj-$(CONFIG_S5P_DEV_MFC)	+= dev-mfc.o
+obj-$(CONFIG_S5P_SETUP_MFC)	+= setup-mfc.o

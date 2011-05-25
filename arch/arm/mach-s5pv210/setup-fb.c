@@ -1,7 +1,7 @@
 /* linux/arch/arm/mach-s5pv210/setup-fb.c
  *
- * Copyright (c) 2010 Samsung Electronics Co., Ltd.
- *		http://www.samsung.com/
+ * Copyright (c) 2009 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com/
  *
  * Base FIMD controller configuration
  *
@@ -19,12 +19,11 @@
 #include <linux/types.h>
 #include <plat/clock.h>
 #include <plat/gpio-cfg.h>
+#include <plat/fb.h>
 #include <mach/regs-clock.h>
 #include <mach/regs-gpio.h>
 #include <linux/io.h>
 #include <mach/map.h>
-#include <mach/gpio.h>
-#include <mach/pd.h>
 
 struct platform_device; /* don't need the contents */
 
@@ -35,38 +34,38 @@ void s3cfb_cfg_gpio(struct platform_device *pdev)
 	for (i = 0; i < 8; i++) {
 		s3c_gpio_cfgpin(S5PV210_GPF0(i), S3C_GPIO_SFN(2));
 		s3c_gpio_setpull(S5PV210_GPF0(i), S3C_GPIO_PULL_NONE);
-		s5p_gpio_set_drvstr(S5PV210_GPF0(i), S5P_GPIO_DRVSTR_LV4);
 	}
 
 	for (i = 0; i < 8; i++) {
 		s3c_gpio_cfgpin(S5PV210_GPF1(i), S3C_GPIO_SFN(2));
 		s3c_gpio_setpull(S5PV210_GPF1(i), S3C_GPIO_PULL_NONE);
-		s5p_gpio_set_drvstr(S5PV210_GPF1(i), S5P_GPIO_DRVSTR_LV4);
 	}
 
 	for (i = 0; i < 8; i++) {
 		s3c_gpio_cfgpin(S5PV210_GPF2(i), S3C_GPIO_SFN(2));
 		s3c_gpio_setpull(S5PV210_GPF2(i), S3C_GPIO_PULL_NONE);
-		s5p_gpio_set_drvstr(S5PV210_GPF2(i), S5P_GPIO_DRVSTR_LV4);
 	}
 
 	for (i = 0; i < 4; i++) {
 		s3c_gpio_cfgpin(S5PV210_GPF3(i), S3C_GPIO_SFN(2));
 		s3c_gpio_setpull(S5PV210_GPF3(i), S3C_GPIO_PULL_NONE);
-		s5p_gpio_set_drvstr(S5PV210_GPF3(i), S5P_GPIO_DRVSTR_LV4);
 	}
 
 	/* mDNIe SEL: why we shall write 0x2 ? */
 	writel(0x2, S5P_MDNIE_SEL);
+
+	/* drive strength to max */
+	writel(0xffffffff, S5PV210_GPF0_BASE + 0xc);
+	writel(0xffffffff, S5PV210_GPF1_BASE + 0xc);
+	writel(0xffffffff, S5PV210_GPF2_BASE + 0xc);
+	writel(0x000000ff, S5PV210_GPF3_BASE + 0xc);
 }
 
 int s3cfb_clk_on(struct platform_device *pdev, struct clk **s3cfb_clk)
 {
 	struct clk *sclk = NULL;
 	struct clk *mout_mpll = NULL;
-	struct clk *lcd = NULL;
 	u32 rate = 0;
-	int ret;
 
 	sclk = clk_get(&pdev->dev, "sclk_fimd");
 	if (IS_ERR(sclk)) {
@@ -74,72 +73,100 @@ int s3cfb_clk_on(struct platform_device *pdev, struct clk **s3cfb_clk)
 		goto err_clk1;
 	}
 
+#if defined(CONFIG_S5PV210_SCLKFIMD_USE_VPLL)
+	mout_mpll = clk_get(&pdev->dev, "sclk_vpll");
+#else
 	mout_mpll = clk_get(&pdev->dev, "mout_mpll");
+#endif
 	if (IS_ERR(mout_mpll)) {
 		dev_err(&pdev->dev, "failed to get mout_mpll\n");
-		goto err_clk1;
-	}
-
-	lcd = clk_get(&pdev->dev, "lcd");
-	if (IS_ERR(lcd)) {
-		dev_err(&pdev->dev, "failed to get lcd\n");
-		goto err_clk1;
+		goto err_clk2;
 	}
 
 	clk_set_parent(sclk, mout_mpll);
 
-	rate = clk_round_rate(sclk, 133400000);
-	dev_dbg(&pdev->dev, "set fimd sclk rate to %d\n", rate);
-
 	if (!rate)
-		rate = 133400000;
+		rate = 166750000;
+
+#if defined(CONFIG_FB_S3C_LVDS)
+	#if defined(CONFIG_TARGET_PCLK_44_46)
+		rate = 45000000;
+	#elif defined(CONFIG_TARGET_PCLK_47_6)
+		//P1_ATT PCLK -> 47.6MHz
+		rate = 48000000;
+	#else
+		rate = 54000000;
+	#endif
+#endif
 
 	clk_set_rate(sclk, rate);
 	dev_dbg(&pdev->dev, "set fimd sclk rate to %d\n", rate);
 
-	clk_put(mout_mpll);
+#if defined(CONFIG_FB_S3C_MDNIE) && defined(CONFIG_FB_S3C_LVDS)
+	{
+	struct clk * clk_xusb;
+	struct clk * sclk_mdnie;
+	struct clk * sclk_mdnie_pwm;
+	sclk_mdnie = clk_get(&pdev->dev, "sclk_mdnie");
+	if (IS_ERR(sclk_mdnie)) {
+		dev_err(&pdev->dev, "failed to get sclk for mdnie\n");
+		}
+	else
+		{
+		clk_set_parent(sclk_mdnie, mout_mpll);
 
-	ret = s5pv210_pd_enable("fimd_pd");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to enable fimd power domain\n");
-		goto err_clk2;
+	#if defined(CONFIG_TARGET_PCLK_44_46)
+		clk_set_rate(sclk_mdnie, 45*1000000);
+	#elif defined(CONFIG_TARGET_PCLK_47_6)
+		//P1_ATT PCLK -> 47.6MHz
+		clk_set_rate(sclk_mdnie, 48*1000000);
+	#else
+		clk_set_rate(sclk_mdnie, 54*1000000);
+	#endif
+		clk_put(sclk_mdnie);
+		}
+	sclk_mdnie_pwm = clk_get(&pdev->dev, "sclk_mdnie_pwm");
+	if (IS_ERR(sclk_mdnie_pwm)) {
+		dev_err(&pdev->dev, "failed to get sclk for mdnie pwm\n");
+		}
+	else
+		{
+		clk_xusb = clk_get(&pdev->dev, "xusbxti");
+		if (IS_ERR(clk_xusb)) {
+			dev_err(&pdev->dev, "failed to get xusbxti for mdnie pwm\n");
+			}
+		else
+			{
+			clk_set_parent(sclk_mdnie_pwm, clk_xusb);
+			clk_put(clk_xusb);
+			}
+		clk_set_rate(sclk_mdnie_pwm, 2400*1000);		// mdnie pwm need to 24Khz*100
+		clk_put(sclk_mdnie_pwm);
+		}
 	}
+#endif
 
-
-	clk_enable(lcd);	
+	clk_put(mout_mpll);
 
 	clk_enable(sclk);
 
-	clk_put(sclk);
-
-	*s3cfb_clk = lcd;
+	*s3cfb_clk = sclk;
 
 	return 0;
 
 err_clk2:
-	clk_put(mout_mpll);
-
-err_clk1:
 	clk_put(sclk);
 
-	clk_put(lcd);
-
+err_clk1:
 	return -EINVAL;
 }
 
 int s3cfb_clk_off(struct platform_device *pdev, struct clk **clk)
 {
-	int ret;
-
 	clk_disable(*clk);
 	clk_put(*clk);
 
 	*clk = NULL;
-
-	ret = s5pv210_pd_disable("fimd_pd");
-
-	if (ret < 0)
-		dev_err(&pdev->dev, "failed to disable fimd power domain\n");
 
 	return 0;
 }
@@ -149,9 +176,8 @@ void s3cfb_get_clk_name(char *clk_name)
 	strcpy(clk_name, "sclk_fimd");
 }
 #ifdef CONFIG_FB_S3C_LTE480WV
-int s3cfb_backlight_on(struct platform_device *pdev)
+int s3cfb_backlight_onoff(struct platform_device *pdev, int onoff)
 {
-#if !defined(CONFIG_BACKLIGHT_PWM)
 	int err;
 
 	err = gpio_request(S5PV210_GPD0(3), "GPD0");
@@ -162,32 +188,19 @@ int s3cfb_backlight_on(struct platform_device *pdev)
 		return err;
 	}
 
-	gpio_direction_output(S5PV210_GPD0(3), 1);
-	gpio_free(S5PV210_GPD0(3));
-#endif
-	return 0;
-}
+	if (onoff) {
+		gpio_direction_output(S5PV210_GPD0(3), 1);
+		/* 2009.12.28 by icarus : added for PWM backlight */
+		s3c_gpio_cfgpin(S5PV210_GPD0(3), S5PV210_GPD_0_3_TOUT_3);
 
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-#if !defined(CONFIG_BACKLIGHT_PWM)
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(3), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-				"lcd backlight control\n");
-		return err;
+	} else {
+		gpio_direction_output(S5PV210_GPD0(3), 0);
 	}
-
-	gpio_direction_output(S5PV210_GPD0(3), 0);
 	gpio_free(S5PV210_GPD0(3));
-#endif
 	return 0;
 }
 
-int s3cfb_lcd_on(struct platform_device *pdev)
+int s3cfb_reset_lcd(struct platform_device *pdev)
 {
 	int err;
 
@@ -211,70 +224,44 @@ int s3cfb_lcd_on(struct platform_device *pdev)
 
 	return 0;
 }
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
-	return 0;
-}
 #elif defined(CONFIG_FB_S3C_HT101HD1)
 int s3cfb_backlight_on(struct platform_device *pdev)
 {
 	int err;
 
-	err = gpio_request(S5PV210_GPD0(0), "GPD0");
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-				"lcd backlight control\n");
-		return err;
-	}
-
 	err = gpio_request(S5PV210_GPB(2), "GPB");
 	if (err) {
 		printk(KERN_ERR "failed to request GPB for "
-				"lcd LED_EN control\n");
+			"lcd backlight control\n");
 		return err;
 	}
 
-	gpio_direction_output(S5PV210_GPD0(0), 1); /* BL pwm High */
+#ifdef CONFIG_TYPE_PROTO3
+	err = gpio_request(S5PV210_GPD0(1), "GPD0");
+	if (err) {
+		printk(KERN_ERR "failed to request GPD0 for "
+			"lcd backlight control\n");
+		return err;
+	}
+#endif
 
 	gpio_direction_output(S5PV210_GPB(2), 1); /* LED_EN (SPI1_MOSI) */
 
-	gpio_free(S5PV210_GPD0(0));
-	gpio_free(S5PV210_GPB(2));
-
-	return 0;
-}
-
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-#if !defined(CONFIG_BACKLIGHT_PWM)
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(0), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-				"lcd backlight control\n");
-		return err;
-	}
-
-	err = gpio_request(S5PV210_GPB(2), "GPB");
-	if (err) {
-		printk(KERN_ERR "failed to request GPB for "
-				"lcd LED_EN control\n");
-		return err;
-	}
-
-	gpio_direction_output(S5PV210_GPD0(3), 0);
-	gpio_direction_output(S5PV210_GPB(2), 0);
-
-	gpio_free(S5PV210_GPD0(0));
-	gpio_free(S5PV210_GPB(2));
+#ifdef CONFIG_TYPE_PROTO3
+	/* LCD_PWR_EN is only for Proto3 */
+	gpio_direction_output(S5PV210_GPD0(1), 1);
+	mdelay(10);
 #endif
+
+	gpio_free(S5PV210_GPB(2));
+#ifdef CONFIG_TYPE_PROTO3
+	gpio_free(S5PV210_GPD0(1));
+#endif
+
 	return 0;
 }
 
-int s3cfb_lcd_on(struct platform_device *pdev)
+int s3cfb_reset_lcd(struct platform_device *pdev)
 {
 	int err;
 
@@ -293,31 +280,6 @@ int s3cfb_lcd_on(struct platform_device *pdev)
 
 	gpio_free(S5PV210_GPH0(1));
 
-	return 0;
-}
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
-	return 0;
-}
-#else
-int s3cfb_backlight_on(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_lcd_on(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
 	return 0;
 }
 #endif

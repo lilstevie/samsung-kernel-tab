@@ -39,6 +39,12 @@ struct clk clk_xusbxti = {
 	.rate		= 24000000,
 };
 
+struct clk clk_xrtcxti = {
+	.name		= "xrtcxti",
+	.id		= -1,
+	.rate		= 32768,
+};
+
 struct clk s5p_clk_27m = {
 	.name		= "clk_27m",
 	.id		= -1,
@@ -71,13 +77,6 @@ struct clk clk_fout_mpll = {
 /* EPLL clock output */
 struct clk clk_fout_epll = {
 	.name		= "fout_epll",
-	.id		= -1,
-	.ctrlbit	= (1 << 31),
-};
-
-/* DPLL clock output */
-struct clk clk_fout_dpll = {
-	.name		= "fout_dpll",
 	.id		= -1,
 	.ctrlbit	= (1 << 31),
 };
@@ -130,17 +129,6 @@ struct clksrc_sources clk_src_epll = {
 	.nr_sources	= ARRAY_SIZE(clk_src_epll_list),
 };
 
-/* Possible clock sources for DPLL Mux */
-static struct clk *clk_src_dpll_list[] = {
-	[0] = &clk_fin_dpll,
-	[1] = &clk_fout_dpll,
-};
-
-struct clksrc_sources clk_src_dpll = {
-	.sources	= clk_src_dpll_list,
-	.nr_sources	= ARRAY_SIZE(clk_src_dpll_list),
-};
-
 struct clk clk_vpll = {
 	.name		= "vpll",
 	.id		= -1,
@@ -159,16 +147,16 @@ int s5p_gatectrl(void __iomem *reg, struct clk *clk, int enable)
 
 static struct clk *s5p_clks[] __initdata = {
 	&clk_ext_xtal_mux,
+	&clk_xrtcxti,
+	&clk_xusbxti,
 	&clk_48m,
 	&s5p_clk_27m,
 	&clk_fout_apll,
 	&clk_fout_mpll,
 	&clk_fout_epll,
-	&clk_fout_dpll,
 	&clk_fout_vpll,
 	&clk_arm,
 	&clk_vpll,
-	&clk_xusbxti,
 };
 
 void __init s5p_register_clocks(unsigned long xtal_freq)

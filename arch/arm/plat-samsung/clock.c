@@ -67,53 +67,47 @@ static int clk_null_enable(struct clk *clk, int enable)
 
 /* Clock API calls */
 
+static int nullstrcmp(const char *a, const char *b)
+{
+	if (!a)
+		return b ? -1 : 0;
+	if (!b)
+		return 1;
+
+	return strcmp(a, b);
+}
+
 struct clk *clk_get(struct device *dev, const char *id)
 {
-	struct clk *p;
-	struct clk *clk = ERR_PTR(-ENOENT);
+	struct clk *clk;
 	int idno;
 
-#if defined(CONFIG_ARCH_S5P6450)
 	if (dev == NULL || dev->bus != &platform_bus_type)
 		idno = -1;
 	else
-	idno = to_platform_device(dev)->id;
-#else	
-	if (dev == NULL)
-		idno = -1;
-	else {
-		if (to_platform_device(dev)->id)
-			idno = to_platform_device(dev)->id;
-		else if (dev->bus != &platform_bus_type)
-			idno = -1;
-		else
-			idno = to_platform_device(dev)->id;
-	}
-#endif
+		idno = to_platform_device(dev)->id;
+
 	spin_lock(&clocks_lock);
 
-	list_for_each_entry(p, &clocks, list) {
-		if (p->id == idno &&
-		    strcmp(id, p->name) == 0 &&
-		    try_module_get(p->owner)) {
-			clk = p;
-			break;
-		}
-	}
+	list_for_each_entry(clk, &clocks, list)
+		if (!nullstrcmp(id, clk->name) && clk->dev == dev)
+			goto found_it;
 
-	/* check for the case where a device was supplied, but the
-	 * clock that was being searched for is not device specific */
+	list_for_each_entry(clk, &clocks, list)
+		if (clk->id == idno && nullstrcmp(id, clk->name) == 0)
+			goto found_it;
 
-	if (IS_ERR(clk)) {
-		list_for_each_entry(p, &clocks, list) {
-			if (p->id == -1 && strcmp(id, p->name) == 0 &&
-			    try_module_get(p->owner)) {
-				clk = p;
-				break;
-			}
-		}
-	}
+	list_for_each_entry(clk, &clocks, list)
+		if (clk->id == -1 && !nullstrcmp(id, clk->name) &&
+							clk->dev == NULL)
+			goto found_it;
 
+	clk = ERR_PTR(-ENOENT);
+	spin_unlock(&clocks_lock);
+	return clk;
+found_it:
+	if (!try_module_get(clk->owner))
+		clk = ERR_PTR(-ENOENT);
 	spin_unlock(&clocks_lock);
 	return clk;
 }
@@ -403,11 +397,6 @@ void __init s3c_disable_clocks(struct clk *clkp, int nr_clks)
 		(clkp->enable)(clkp, 0);
 }
 
-#ifdef CONFIG_S5PV310_FPGA
-static struct clk tmp_clocks[] = {
-};
-#endif
-
 /* initalise all the clocks */
 
 int __init s3c24xx_register_baseclocks(unsigned long xtal)
@@ -436,9 +425,6 @@ int __init s3c24xx_register_baseclocks(unsigned long xtal)
 	if (s3c24xx_register_clock(&clk_p) < 0)
 		printk(KERN_ERR "failed to register cpu pclk\n");
 
-#ifdef CONFIG_S5PV310_FPGA
-	s3c_register_clocks(tmp_clocks, ARRAY_SIZE(tmp_clocks));
-#endif
 	return 0;
 }
 

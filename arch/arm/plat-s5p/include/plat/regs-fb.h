@@ -1,7 +1,7 @@
 /* linux/arch/arm/plat-s5p/include/plat/regs-fb.h
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
- *		http://www.samsung.com/
+ *              http://www.samsung.com/
  *
  * Register definition file for Samsung Display Controller (FIMD) driver
  *
@@ -10,132 +10,133 @@
  * published by the Free Software Foundation.
 */
 
-#ifndef __ASM_PLAT_REGS_FB_H
-#define __ASM_PLAT_REGS_FB_H __FILE__
+#ifndef _REGS_FB_H
+#define _REGS_FB_H
 
-#define S3C_WINCON(x)		(0x0020 + (x * 0x04))
-#define S3C_VIDOSD_A(x)		(0x0040 + (x * 0x10))
-#define S3C_VIDOSD_B(x)		(0x0044 + (x * 0x10))
-#define S3C_VIDOSD_C(x)		(0x0048 + (x * 0x10))
-#define S3C_VIDOSD_D(x)		(0x004C + (x * 0x10))
-#define S3C_VIDADDR_START0(x)	(0x00A0 + (x * 0x08))
-#define S3C_VIDADDR_START1(x)	(0x00A4 + (x * 0x08))
-#define S3C_VIDADDR_END0(x)	(0x00D0 + (x * 0x08))
-#define S3C_VIDADDR_END1(x)	(0x00D4 + (x * 0x08))
-#define S3C_VIDADDR_SIZE(x)	(0x0100 + (x * 0x04))
-#define S3C_KEYCON(x)		(0x0140 + ((x - 1) * 0x08))
-#define S3C_KEYVAL(x)		(0x0144 + ((x - 1) * 0x08))
-#define S3C_WINMAP(x)		(0x0180 + (x * 0x04))
+#define S3C_LCDREG(x)		(x)
+#define S3C_WINCON(x)		S3C_LCDREG(0x0020 + (x * 0x04))
+#define S3C_VIDOSD_A(x)		S3C_LCDREG(0x0040 + (x * 0x10))
+#define S3C_VIDOSD_B(x)		S3C_LCDREG(0x0044 + (x * 0x10))
+#define S3C_VIDOSD_C(x)		S3C_LCDREG(0x0048 + (x * 0x10))
+#define S3C_VIDOSD_D(x)		S3C_LCDREG(0x004C + (x * 0x10))
+#define S3C_VIDADDR_START0(x)	S3C_LCDREG(0x00A0 + (x * 0x08))
+#define S3C_VIDADDR_START1(x)	S3C_LCDREG(0x00A4 + (x * 0x08))
+#define S3C_VIDADDR_END0(x)	S3C_LCDREG(0x00D0 + (x * 0x08))
+#define S3C_VIDADDR_END1(x)	S3C_LCDREG(0x00D4 + (x * 0x08))
+#define S3C_VIDADDR_SIZE(x)	S3C_LCDREG(0x0100 + (x * 0x04))
+#define S3C_KEYCON(x)		S3C_LCDREG(0x0140 + ((x - 1) * 0x08))
+#define S3C_KEYVAL(x)		S3C_LCDREG(0x0144 + ((x - 1) * 0x08))
+#define S3C_WINMAP(x)		S3C_LCDREG(0x0180 + (x * 0x04))
 
 /*
  * Register Map
 */
-#define S3C_VIDCON0		(0x0000)	/* Video control 0 */
-#define S3C_VIDCON1		(0x0004)	/* Video control 1 */
-#define S3C_VIDCON2		(0x0008)	/* Video control 2 */
-#define S3C_PRTCON		(0x000C)	/* Protect control */
+#define S3C_VIDCON0		S3C_LCDREG(0x0000)  	/* Video control 0 */
+#define S3C_VIDCON1		S3C_LCDREG(0x0004)  	/* Video control 1 */
+#define S3C_VIDCON2		S3C_LCDREG(0x0008)  	/* Video control 2 */
+#define S3C_PRTCON		S3C_LCDREG(0x000C)  	/* Protect control */
 
-#define S3C_VIDTCON0		(0x0010)	/* Video time control 0 */
-#define S3C_VIDTCON1		(0x0014)	/* Video time control 1 */
-#define S3C_VIDTCON2		(0x0018)	/* Video time control 2 */
+#define S3C_VIDTCON0		S3C_LCDREG(0x0010)  	/* Video time control 0 */
+#define S3C_VIDTCON1		S3C_LCDREG(0x0014)  	/* Video time control 1 */
+#define S3C_VIDTCON2		S3C_LCDREG(0x0018)  	/* Video time control 2 */
 
-#define S3C_WINCON0		(0x0020)	/* Window control 0 */
-#define S3C_WINCON1		(0x0024)	/* Window control 1 */
-#define S3C_WINCON2		(0x0028)	/* Window control 2 */
-#define S3C_WINCON3		(0x002C)	/* Window control 3 */
-#define S3C_WINCON4		(0x0030)	/* Window control 4 */
+#define S3C_WINCON0		S3C_LCDREG(0x0020)  	/* Window control 0 */
+#define S3C_WINCON1		S3C_LCDREG(0x0024)  	/* Window control 1 */
+#define S3C_WINCON2		S3C_LCDREG(0x0028)  	/* Window control 2 */
+#define S3C_WINCON3		S3C_LCDREG(0x002C)  	/* Window control 3 */
+#define S3C_WINCON4		S3C_LCDREG(0x0030)  	/* Window control 4 */
 
-#define S3C_WINSHMAP		(0x0034)	/* Window Shadow control */
+#define S3C_WINSHMAP		S3C_LCDREG(0x0034)  	/* Window Shadow control */
 
-#define S3C_VIDOSD0A		(0x0040)	/* Video Window 0 position control */
-#define S3C_VIDOSD0B		(0x0044)	/* Video Window 0 position control1 */
-#define S3C_VIDOSD0C		(0x0048)	/* Video Window 0 position control */
+#define S3C_VIDOSD0A		S3C_LCDREG(0x0040)  	/* Video Window 0 position control */
+#define S3C_VIDOSD0B		S3C_LCDREG(0x0044)  	/* Video Window 0 position control1 */
+#define S3C_VIDOSD0C		S3C_LCDREG(0x0048)  	/* Video Window 0 position control */
 
-#define S3C_VIDOSD1A		(0x0050)	/* Video Window 1 position control */
-#define S3C_VIDOSD1B		(0x0054)	/* Video Window 1 position control */
-#define S3C_VIDOSD1C		(0x0058)	/* Video Window 1 position control */
-#define S3C_VIDOSD1D		(0x005C)	/* Video Window 1 position control */
+#define S3C_VIDOSD1A		S3C_LCDREG(0x0050)  	/* Video Window 1 position control */
+#define S3C_VIDOSD1B		S3C_LCDREG(0x0054)  	/* Video Window 1 position control */
+#define S3C_VIDOSD1C		S3C_LCDREG(0x0058)  	/* Video Window 1 position control */
+#define S3C_VIDOSD1D		S3C_LCDREG(0x005C)  	/* Video Window 1 position control */
 
-#define S3C_VIDOSD2A		(0x0060)	/* Video Window 2 position control */
-#define S3C_VIDOSD2B		(0x0064)	/* Video Window 2 position control */
-#define S3C_VIDOSD2C		(0x0068)	/* Video Window 2 position control */
-#define S3C_VIDOSD2D		(0x006C)	/* Video Window 2 position control */
+#define S3C_VIDOSD2A		S3C_LCDREG(0x0060)  	/* Video Window 2 position control */
+#define S3C_VIDOSD2B		S3C_LCDREG(0x0064)  	/* Video Window 2 position control */
+#define S3C_VIDOSD2C		S3C_LCDREG(0x0068)  	/* Video Window 2 position control */
+#define S3C_VIDOSD2D		S3C_LCDREG(0x006C)  	/* Video Window 2 position control */
 
-#define S3C_VIDOSD3A		(0x0070)	/* Video Window 3 position control */
-#define S3C_VIDOSD3B		(0x0074)	/* Video Window 3 position control */
-#define S3C_VIDOSD3C		(0x0078)	/* Video Window 3 position control */
+#define S3C_VIDOSD3A		S3C_LCDREG(0x0070)  	/* Video Window 3 position control */
+#define S3C_VIDOSD3B		S3C_LCDREG(0x0074)  	/* Video Window 3 position control */
+#define S3C_VIDOSD3C		S3C_LCDREG(0x0078)  	/* Video Window 3 position control */
 
-#define S3C_VIDOSD4A		(0x0080)	/* Video Window 4 position control */
-#define S3C_VIDOSD4B		(0x0084)	/* Video Window 4 position control */
-#define S3C_VIDOSD4C		(0x0088)	/* Video Window 4 position control */
+#define S3C_VIDOSD4A		S3C_LCDREG(0x0080)  	/* Video Window 4 position control */
+#define S3C_VIDOSD4B		S3C_LCDREG(0x0084)  	/* Video Window 4 position control */
+#define S3C_VIDOSD4C		S3C_LCDREG(0x0088)  	/* Video Window 4 position control */
 
-#define S3C_VIDW00ADD0B0	(0x00A0)	/* Window 0 buffer start address, buffer 0 */
-#define S3C_VIDW00ADD0B1	(0x00A4)	/* Window 0 buffer start address, buffer 1 */
-#define S3C_VIDW01ADD0B0	(0x00A8)	/* Window 1 buffer start address, buffer 0 */
-#define S3C_VIDW01ADD0B1	(0x00AC)	/* Window 1 buffer start address, buffer 1 */
-#define S3C_VIDW02ADD0		(0x00B0)	/* Window 2 buffer start address, buffer 0 */
-#define S3C_VIDW03ADD0		(0x00B8)	/* Window 3 buffer start address, buffer 0 */
-#define S3C_VIDW04ADD0		(0x00C0)	/* Window 4 buffer start address, buffer 0 */
-#define S3C_VIDW00ADD1B0	(0x00D0)	/* Window 0 buffer end address, buffer 0 */
-#define S3C_VIDW00ADD1B1	(0x00D4)	/* Window 0 buffer end address, buffer 1 */
-#define S3C_VIDW01ADD1B0	(0x00D8)	/* Window 1 buffer end address, buffer 0 */
-#define S3C_VIDW01ADD1B1	(0x00DC)	/* Window 1 buffer end address, buffer 1 */
-#define S3C_VIDW02ADD1		(0x00E0)	/* Window 2 buffer end address */
-#define S3C_VIDW03ADD1		(0x00E8)	/* Window 3 buffer end address */
-#define S3C_VIDW04ADD1		(0x00F0)	/* Window 4 buffer end address */
-#define S3C_VIDW00ADD2		(0x0100)	/* Window 0 buffer size */
-#define S3C_VIDW01ADD2		(0x0104)	/* Window 1 buffer size */
-#define S3C_VIDW02ADD2		(0x0108)	/* Window 2 buffer size */
-#define S3C_VIDW03ADD2		(0x010C)	/* Window 3 buffer size */
-#define S3C_VIDW04ADD2		(0x0110)	/* Window 4 buffer size */
+#define S3C_VIDW00ADD0B0	S3C_LCDREG(0x00A0) 	/* Window 0 buffer start address, buffer 0 */
+#define S3C_VIDW00ADD0B1	S3C_LCDREG(0x00A4) 	/* Window 0 buffer start address, buffer 1 */
+#define S3C_VIDW01ADD0B0	S3C_LCDREG(0x00A8) 	/* Window 1 buffer start address, buffer 0 */
+#define S3C_VIDW01ADD0B1	S3C_LCDREG(0x00AC) 	/* Window 1 buffer start address, buffer 1 */
+#define S3C_VIDW02ADD0		S3C_LCDREG(0x00B0) 	/* Window 2 buffer start address, buffer 0 */
+#define S3C_VIDW03ADD0		S3C_LCDREG(0x00B8) 	/* Window 3 buffer start address, buffer 0 */
+#define S3C_VIDW04ADD0		S3C_LCDREG(0x00C0) 	/* Window 4 buffer start address, buffer 0 */
+#define S3C_VIDW00ADD1B0	S3C_LCDREG(0x00D0) 	/* Window 0 buffer end address, buffer 0 */
+#define S3C_VIDW00ADD1B1	S3C_LCDREG(0x00D4) 	/* Window 0 buffer end address, buffer 1 */
+#define S3C_VIDW01ADD1B0	S3C_LCDREG(0x00D8) 	/* Window 1 buffer end address, buffer 0 */
+#define S3C_VIDW01ADD1B1	S3C_LCDREG(0x00DC) 	/* Window 1 buffer end address, buffer 1 */
+#define S3C_VIDW02ADD1		S3C_LCDREG(0x00E0) 	/* Window 2 buffer end address */
+#define S3C_VIDW03ADD1		S3C_LCDREG(0x00E8) 	/* Window 3 buffer end address */
+#define S3C_VIDW04ADD1		S3C_LCDREG(0x00F0) 	/* Window 4 buffer end address */
+#define S3C_VIDW00ADD2		S3C_LCDREG(0x0100) 	/* Window 0 buffer size */
+#define S3C_VIDW01ADD2		S3C_LCDREG(0x0104) 	/* Window 1 buffer size */
+#define S3C_VIDW02ADD2		S3C_LCDREG(0x0108) 	/* Window 2 buffer size */
+#define S3C_VIDW03ADD2		S3C_LCDREG(0x010C) 	/* Window 3 buffer size */
+#define S3C_VIDW04ADD2		S3C_LCDREG(0x0110) 	/* Window 4 buffer size */
 
-#define S3C_VP1TCON0		(0x0118)	/* VP1 interface timing control 0 */
-#define S3C_VP1TCON1		(0x011C)	/* VP1 interface timing control 1 */
+#define S3C_VP1TCON0		S3C_LCDREG(0x0118)	/* VP1 interface timing control 0 */
+#define S3C_VP1TCON1		S3C_LCDREG(0x011C)	/* VP1 interface timing control 1 */
 
-#define S3C_VIDINTCON0		(0x0130)	/* Indicate the Video interrupt control */
-#define S3C_VIDINTCON1		(0x0134)	/* Video Interrupt Pending */
+#define S3C_VIDINTCON0		S3C_LCDREG(0x0130)	/* Indicate the Video interrupt control */
+#define S3C_VIDINTCON1		S3C_LCDREG(0x0134) 	/* Video Interrupt Pending */
 
-#define S3C_W1KEYCON0		(0x0140)	/* Color key control */
-#define S3C_W1KEYCON1		(0x0144)	/* Color key value (transparent value) */
-#define S3C_W2KEYCON0		(0x0148)	/* Color key control */
-#define S3C_W2KEYCON1		(0x014C)	/* Color key value (transparent value) */
-#define S3C_W3KEYCON0		(0x0150)	/* Color key control */
-#define S3C_W3KEYCON1		(0x0154)	/* Color key value (transparent value) */
-#define S3C_W4KEYCON0		(0x0158)	/* Color key control */
-#define S3C_W4KEYCON1		(0x015C)	/* Color key value (transparent value) */
+#define S3C_W1KEYCON0		S3C_LCDREG(0x0140) 	/* Color key control */
+#define S3C_W1KEYCON1		S3C_LCDREG(0x0144) 	/* Color key value (transparent value) */
+#define S3C_W2KEYCON0		S3C_LCDREG(0x0148) 	/* Color key control */
+#define S3C_W2KEYCON1		S3C_LCDREG(0x014C) 	/* Color key value (transparent value) */
+#define S3C_W3KEYCON0		S3C_LCDREG(0x0150)	/* Color key control */
+#define S3C_W3KEYCON1		S3C_LCDREG(0x0154)	/* Color key value (transparent value) */
+#define S3C_W4KEYCON0		S3C_LCDREG(0x0158)	/* Color key control */
+#define S3C_W4KEYCON1		S3C_LCDREG(0x015C)	/* Color key value (transparent value) */
 
-#define S3C_W1KEYALPHA		(0x0160)	/* Color key alpha value */
-#define S3C_W2KEYALPHA		(0x0164)	/* Color key alpha value */
-#define S3C_W3KEYALPHA		(0x0168)	/* Color key alpha value */
-#define S3C_W4KEYALPHA		(0x016C)	/* Color key alpha value */
+#define S3C_W1KEYALPHA		S3C_LCDREG(0x0160)	/* Color key alpha value */
+#define S3C_W2KEYALPHA		S3C_LCDREG(0x0164)	/* Color key alpha value */
+#define S3C_W3KEYALPHA		S3C_LCDREG(0x0168)	/* Color key alpha value */
+#define S3C_W4KEYALPHA		S3C_LCDREG(0x016C)	/* Color key alpha value */
 
-#define S3C_DITHMODE		(0x0170)	/* Dithering mode */
+#define S3C_DITHMODE		S3C_LCDREG(0x0170)	/* Dithering mode */
 
-#define S3C_WIN0MAP		(0x0180)	/* Window color control	*/
-#define S3C_WIN1MAP		(0x0184)	/* Window color control	*/
-#define S3C_WIN2MAP		(0x0188)	/* Window color control	*/
-#define S3C_WIN3MAP		(0x018C)	/* Window color control	*/
-#define S3C_WIN4MAP		(0x0190)	/* Window color control	*/
+#define S3C_WIN0MAP		S3C_LCDREG(0x0180)	/* Window color control	*/
+#define S3C_WIN1MAP		S3C_LCDREG(0x0184)	/* Window color control	*/
+#define S3C_WIN2MAP		S3C_LCDREG(0x0188)	/* Window color control	*/
+#define S3C_WIN3MAP		S3C_LCDREG(0x018C)	/* Window color control	*/
+#define S3C_WIN4MAP		S3C_LCDREG(0x0190)	/* Window color control	*/
 
-#define S3C_WPALCON_H		(0x019C)	/* Window Palette control */
-#define S3C_WPALCON_L		(0x01A0)	/* Window Palette control */
+#define S3C_WPALCON_H		S3C_LCDREG(0x019C)	/* Window Palette control */
+#define S3C_WPALCON_L		S3C_LCDREG(0x01A0)	/* Window Palette control */
 
-#define S3C_VIDW0ALPHA0		(0x0200)	/* Window 0 alpha value 0 */
-#define S3C_VIDW0ALPHA1		(0x0204)	/* Window 0 alpha value 1 */
-#define S3C_VIDW1ALPHA0		(0x0208)	/* Window 1 alpha value 0 */
-#define S3C_VIDW1ALPHA1		(0x020C)	/* Window 1 alpha value 1 */
-#define S3C_VIDW2ALPHA0		(0x0210)	/* Window 2 alpha value 0 */
-#define S3C_VIDW2ALPHA1		(0x0214)	/* Window 2 alpha value 1 */
-#define S3C_VIDW3ALPHA0		(0x0218)	/* Window 3 alpha value 0 */
-#define S3C_VIDW3ALPHA1		(0x021C)	/* Window 3 alpha value 1 */
-#define S3C_VIDW4ALPHA0		(0x0220)	/* Window 4 alpha value 0 */
-#define S3C_VIDW4ALPHA1		(0x0224)	/* Window 4 alpha value 1 */
+#define S3C_VIDW0ALPHA0		S3C_LCDREG(0x0200)	/* Window 0 alpha value 0 */
+#define S3C_VIDW0ALPHA1		S3C_LCDREG(0x0204)	/* Window 0 alpha value 1 */
+#define S3C_VIDW1ALPHA0		S3C_LCDREG(0x0208)	/* Window 1 alpha value 0 */
+#define S3C_VIDW1ALPHA1		S3C_LCDREG(0x020C)	/* Window 1 alpha value 1 */
+#define S3C_VIDW2ALPHA0		S3C_LCDREG(0x0210)	/* Window 2 alpha value 0 */
+#define S3C_VIDW2ALPHA1		S3C_LCDREG(0x0214)	/* Window 2 alpha value 1 */
+#define S3C_VIDW3ALPHA0		S3C_LCDREG(0x0218)	/* Window 3 alpha value 0 */
+#define S3C_VIDW3ALPHA1		S3C_LCDREG(0x021C)	/* Window 3 alpha value 1 */
+#define S3C_VIDW4ALPHA0		S3C_LCDREG(0x0220)	/* Window 4 alpha value 0 */
+#define S3C_VIDW4ALPHA1		S3C_LCDREG(0x0224)	/* Window 4 alpha value 1 */
 
-#define S3C_BLENDEQ1		(0x0244)	/* Window 1 blending equation control */
-#define S3C_BLENDEQ2		(0x0248)	/* Window 2 blending equation control */
-#define S3C_BLENDEQ3		(0x024C)	/* Window 3 blending equation control */
-#define S3C_BLENDEQ4		(0x0250)	/* Window 4 blending equation control */
-#define S3C_BLENDCON		(0x0260)	/* Blending control */
+#define S3C_BLENDEQ1		S3C_LCDREG(0x0244)	/* Window 1 blending equation control */
+#define S3C_BLENDEQ2		S3C_LCDREG(0x0248)	/* Window 2 blending equation control */
+#define S3C_BLENDEQ3		S3C_LCDREG(0x024C)	/* Window 3 blending equation control */
+#define S3C_BLENDEQ4		S3C_LCDREG(0x0250)	/* Window 4 blending equation control */
+#define S3C_BLENDCON		S3C_LCDREG(0x0260)	/* Blending control */
 
 /*
  * Bit Definitions
@@ -161,27 +162,27 @@
 #define S3C_VIDCON0_PNRMODE_BGR_S		(3 << 17)
 #define S3C_VIDCON0_PNRMODE_MASK		(3 << 17)
 #define S3C_VIDCON0_PNRMODE_SHIFT		(17)
-#define S3C_VIDCON0_CLKVALUP_ALWAYS		(0 << 16)
-#define S3C_VIDCON0_CLKVALUP_START_FRAME	(1 << 16)
-#define S3C_VIDCON0_CLKVALUP_MASK		(1 << 16)
+#define S3C_VIDCON0_CLKVALUP_ALWAYS 		(0 << 16)
+#define S3C_VIDCON0_CLKVALUP_START_FRAME 	(1 << 16)
+#define S3C_VIDCON0_CLKVALUP_MASK 		(1 << 16)
 #define S3C_VIDCON0_CLKVAL_F(x)			(((x) & 0xff) << 6)
 #define S3C_VIDCON0_VCLKEN_NORMAL		(0 << 5)
 #define S3C_VIDCON0_VCLKEN_FREERUN		(1 << 5)
 #define S3C_VIDCON0_VCLKEN_MASK			(1 << 5)
-#define S3C_VIDCON0_CLKDIR_DIRECTED		(0 << 4)
-#define S3C_VIDCON0_CLKDIR_DIVIDED		(1 << 4)
+#define S3C_VIDCON0_CLKDIR_DIRECTED  		(0 << 4)
+#define S3C_VIDCON0_CLKDIR_DIVIDED   		(1 << 4)
 #define S3C_VIDCON0_CLKDIR_MASK			(1 << 4)
-#define S3C_VIDCON0_CLKSEL_HCLK			(0 << 2)
-#define S3C_VIDCON0_CLKSEL_SCLK			(1 << 2)
-#define S3C_VIDCON0_CLKSEL_MASK			(1 << 2)
-#define S3C_VIDCON0_ENVID_ENABLE		(1 << 1)
-#define S3C_VIDCON0_ENVID_DISABLE		(0 << 1)
-#define S3C_VIDCON0_ENVID_F_ENABLE		(1 << 0)
-#define S3C_VIDCON0_ENVID_F_DISABLE		(0 << 0)
+#define S3C_VIDCON0_CLKSEL_HCLK	  		(0 << 2)
+#define S3C_VIDCON0_CLKSEL_SCLK	  		(1 << 2)
+#define S3C_VIDCON0_CLKSEL_MASK	  		(1 << 2)
+#define S3C_VIDCON0_ENVID_ENABLE	    	(1 << 1)
+#define S3C_VIDCON0_ENVID_DISABLE	    	(0 << 1)
+#define S3C_VIDCON0_ENVID_F_ENABLE     		(1 << 0)
+#define S3C_VIDCON0_ENVID_F_DISABLE     	(0 << 0)
 
 /* VIDCON1 */
-#define S3C_VIDCON1_IVCLK_FALLING_EDGE		(0 << 7)
-#define S3C_VIDCON1_IVCLK_RISING_EDGE		(1 << 7)
+#define S3C_VIDCON1_IVCLK_FALLING_EDGE 		(0 << 7)
+#define S3C_VIDCON1_IVCLK_RISING_EDGE 		(1 << 7)
 #define S3C_VIDCON1_IHSYNC_NORMAL		(0 << 6)
 #define S3C_VIDCON1_IHSYNC_INVERT		(1 << 6)
 #define S3C_VIDCON1_IVSYNC_NORMAL		(0 << 5)
@@ -216,18 +217,18 @@
 /* VIDTCON0 */
 #define S3C_VIDTCON0_VBPDE(x)			(((x) & 0xff) << 24)
 #define S3C_VIDTCON0_VBPD(x)			(((x) & 0xff) << 16)
-#define S3C_VIDTCON0_VFPD(x)			(((x) & 0xff) << 8)
-#define S3C_VIDTCON0_VSPW(x)			(((x) & 0xff) << 0)
+#define S3C_VIDTCON0_VFPD(x) 			(((x) & 0xff) << 8)
+#define S3C_VIDTCON0_VSPW(x) 			(((x) & 0xff) << 0)
 
 /* VIDTCON1 */
 #define S3C_VIDTCON1_VFPDE(x)			(((x) & 0xff) << 24)
-#define S3C_VIDTCON1_HBPD(x)			(((x) & 0xff) << 16)
-#define S3C_VIDTCON1_HFPD(x)			(((x) & 0xff) << 8)
-#define S3C_VIDTCON1_HSPW(x)			(((x) & 0xff) << 0)
+#define S3C_VIDTCON1_HBPD(x) 			(((x) & 0xff) << 16)
+#define S3C_VIDTCON1_HFPD(x) 			(((x) & 0xff) << 8)
+#define S3C_VIDTCON1_HSPW(x) 			(((x) & 0xff) << 0)
 
 /* VIDTCON2 */
-#define S3C_VIDTCON2_LINEVAL(x)			(((x) & 0x7ff) << 11)
-#define S3C_VIDTCON2_HOZVAL(x)			(((x) & 0x7ff) << 0)
+#define S3C_VIDTCON2_LINEVAL(x)  		(((x) & 0x7ff) << 11)
+#define S3C_VIDTCON2_HOZVAL(x)   		(((x) & 0x7ff) << 0)
 
 /* Window 0~4 Control - WINCONx */
 #define S3C_WINCON_DATAPATH_DMA			(0 << 22)
@@ -252,8 +253,8 @@
 #define S3C_WINCON_WSWP_DISABLE			(0 << 15)
 #define S3C_WINCON_WSWP_ENABLE			(1 << 15)
 #define S3C_WINCON_WSWP_SHIFT			(15)
-#define S3C_WINCON_INRGB_RGB			(0 << 13)
-#define S3C_WINCON_INRGB_YUV			(1 << 13)
+#define S3C_WINCON_INRGB_RGB	   		(0 << 13)
+#define S3C_WINCON_INRGB_YUV	 		(1 << 13)
 #define S3C_WINCON_INRGB_MASK			(1 << 13)
 #define S3C_WINCON_BURSTLEN_16WORD		(0 << 9)
 #define S3C_WINCON_BURSTLEN_8WORD		(1 << 9)
@@ -283,7 +284,7 @@
 #define S3C_WINCON_ALPHA0_SEL			(0 << 1)
 #define S3C_WINCON_ALPHA1_SEL			(1 << 1)
 #define S3C_WINCON_ALPHA_SEL_MASK		(1 << 1)
-#define S3C_WINCON_ENWIN_DISABLE		(0 << 0)
+#define S3C_WINCON_ENWIN_DISABLE 		(0 << 0)
 #define S3C_WINCON_ENWIN_ENABLE			(1 << 0)
 
 /* WINCON1 special */
@@ -321,14 +322,14 @@
 #define S3C_VIDOSD_ALPHA1_SHIFT			(0)
 
 /* Start Address */
-#define S3C_VIDADDR_START_VBANK(x)		(((x) & 0xff) << 24)
+#define S3C_VIDADDR_START_VBANK(x) 		(((x) & 0xff) << 24)
 #define S3C_VIDADDR_START_VBASEU(x)		(((x) & 0xffffff) << 0)
 
 /* End Address */
-#define S3C_VIDADDR_END_VBASEL(x)		(((x) & 0xffffff) << 0)
+#define S3C_VIDADDR_END_VBASEL(x) 		(((x) & 0xffffff) << 0)
 
 /* Buffer Size */
-#define S3C_VIDADDR_OFFSIZE(x)			(((x) & 0x1fff) << 13)
+#define S3C_VIDADDR_OFFSIZE(x)  		(((x) & 0x1fff) << 13)
 #define S3C_VIDADDR_PAGEWIDTH(x)		(((x) & 0x1fff) << 0)
 
 /* WIN Color Map */
@@ -342,16 +343,16 @@
 #define S3C_VIDINTCON0_SYSIFDONE_DISABLE	(0 << 17)
 #define S3C_VIDINTCON0_SYSIFDONE_ENABLE		(1 << 17)
 #define S3C_VIDINTCON0_FRAMESEL0_BACK		(0 << 15)
-#define S3C_VIDINTCON0_FRAMESEL0_VSYNC		(1 << 15)
+#define S3C_VIDINTCON0_FRAMESEL0_VSYNC 		(1 << 15)
 #define S3C_VIDINTCON0_FRAMESEL0_ACTIVE		(2 << 15)
-#define S3C_VIDINTCON0_FRAMESEL0_FRONT		(3 << 15)
-#define S3C_VIDINTCON0_FRAMESEL0_MASK		(3 << 15)
+#define S3C_VIDINTCON0_FRAMESEL0_FRONT 		(3 << 15)
+#define S3C_VIDINTCON0_FRAMESEL0_MASK 		(3 << 15)
 #define S3C_VIDINTCON0_FRAMESEL1_NONE		(0 << 13)
 #define S3C_VIDINTCON0_FRAMESEL1_BACK		(1 << 13)
-#define S3C_VIDINTCON0_FRAMESEL1_VSYNC		(2 << 13)
-#define S3C_VIDINTCON0_FRAMESEL1_FRONT		(3 << 13)
+#define S3C_VIDINTCON0_FRAMESEL1_VSYNC 		(2 << 13)
+#define S3C_VIDINTCON0_FRAMESEL1_FRONT 		(3 << 13)
 #define S3C_VIDINTCON0_INTFRMEN_DISABLE		(0 << 12)
-#define S3C_VIDINTCON0_INTFRMEN_ENABLE		(1 << 12)
+#define S3C_VIDINTCON0_INTFRMEN_ENABLE 		(1 << 12)
 #define S3C_VIDINTCON0_FIFOSEL_WIN4		(1 << 11)
 #define S3C_VIDINTCON0_FIFOSEL_WIN3		(1 << 10)
 #define S3C_VIDINTCON0_FIFOSEL_WIN2		(1 << 9)
@@ -362,7 +363,7 @@
 #define S3C_VIDINTCON0_FIFOLEVEL_25		(0 << 2)
 #define S3C_VIDINTCON0_FIFOLEVEL_50		(1 << 2)
 #define S3C_VIDINTCON0_FIFOLEVEL_75		(2 << 2)
-#define S3C_VIDINTCON0_FIFOLEVEL_EMPTY		(3 << 2)
+#define S3C_VIDINTCON0_FIFOLEVEL_EMPTY 		(3 << 2)
 #define S3C_VIDINTCON0_FIFOLEVEL_FULL		(4 << 2)
 #define S3C_VIDINTCON0_FIFOLEVEL_MASK		(7 << 2)
 #define S3C_VIDINTCON0_INTFIFO_DISABLE		(0 << 1)
@@ -381,9 +382,9 @@
 #define S3C_WINMAP_ENABLE			(1 << 24)
 
 /* WxKEYCON0 (1~4) */
-#define S3C_KEYCON0_KEYBLEN_DISABLE		(0 << 26)
+#define S3C_KEYCON0_KEYBLEN_DISABLE 		(0 << 26)
 #define S3C_KEYCON0_KEYBLEN_ENABLE		(1 << 26)
-#define S3C_KEYCON0_KEY_DISABLE			(0 << 25)
+#define S3C_KEYCON0_KEY_DISABLE 		(0 << 25)
 #define S3C_KEYCON0_KEY_ENABLE			(1 << 25)
 #define S3C_KEYCON0_DIRCON_MATCH_FG		(0 << 24)
 #define S3C_KEYCON0_DIRCON_MATCH_BG		(1 << 24)
@@ -392,4 +393,4 @@
 /* WxKEYCON1 (1~4) */
 #define S3C_KEYCON1_COLVAL(x)			(((x) & 0xffffff) << 0)
 
-#endif /* __ASM_PLAT_REGS_FB_H */
+#endif /* _REGS_FB_H */
