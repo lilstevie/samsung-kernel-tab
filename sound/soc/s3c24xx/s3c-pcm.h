@@ -22,8 +22,7 @@
 /* PCM_CTL Bit-Fields */
 #define S3C_PCM_CTL_TXDIPSTICK_MASK		(0x3f)
 #define S3C_PCM_CTL_TXDIPSTICK_SHIFT	(13)
-#define S3C_PCM_CTL_RXDIPSTICK_MASK		(0x3f)
-#define S3C_PCM_CTL_RXDIPSTICK_SHIFT	(7)
+#define S3C_PCM_CTL_RXDIPSTICK_MSK		(0x3f<<7)
 #define S3C_PCM_CTL_TXDMA_EN		(0x1<<6)
 #define S3C_PCM_CTL_RXDMA_EN		(0x1<<5)
 #define S3C_PCM_CTL_TXMSB_AFTER_FSYNC	(0x1<<4)
@@ -120,7 +119,5 @@ struct s3c_pcm_info {
 	struct s3c_dma_params	*dma_playback;
 	struct s3c_dma_params	*dma_capture;
 };
-
-extern struct snd_soc_dai s3c_pcm_dai[];
 
 #endif /* __S3C_PCM_H */

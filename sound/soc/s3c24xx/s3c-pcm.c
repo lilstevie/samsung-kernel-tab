@@ -107,14 +107,11 @@ static void s3c_pcm_snd_rxctrl(struct s3c_pcm_info *pcm, int on)
 
 	ctl = readl(regs + S3C_PCM_CTL);
 	clkctl = readl(regs + S3C_PCM_CLKCTL);
-	ctl &= ~(S3C_PCM_CTL_RXDIPSTICK_MASK
-			 << S3C_PCM_CTL_RXDIPSTICK_SHIFT);
 
 	if (on) {
 		ctl |= S3C_PCM_CTL_RXDMA_EN;
 		ctl |= S3C_PCM_CTL_RXFIFO_EN;
 		ctl |= S3C_PCM_CTL_ENABLE;
-		ctl |= (0x20<<S3C_PCM_CTL_RXDIPSTICK_SHIFT);
 		clkctl |= S3C_PCM_CLKCTL_SERCLK_EN;
 	} else {
 		ctl &= ~S3C_PCM_CTL_RXDMA_EN;
@@ -218,15 +215,10 @@ static int s3c_pcm_hw_params(struct snd_pcm_substream *substream,
 	sclk_div = clk_get_rate(clk) / pcm->sclk_per_fs /
 					params_rate(params) / 2 - 1;
 
-#if defined(CONFIG_ARCH_S5PV310)
-	if(clk_get_rate(clk) != (pcm->sclk_per_fs*params_rate(params)))
-		clk_set_rate(clk, pcm->sclk_per_fs*params_rate(params));
-#else
 	clkctl &= ~(S3C_PCM_CLKCTL_SCLKDIV_MASK
 			<< S3C_PCM_CLKCTL_SCLKDIV_SHIFT);
 	clkctl |= ((sclk_div & S3C_PCM_CLKCTL_SCLKDIV_MASK)
 			<< S3C_PCM_CLKCTL_SCLKDIV_SHIFT);
-#endif
 
 	/* Set the SYNC divider */
 	sync_div = pcm->sclk_per_fs - 1;
@@ -263,7 +255,7 @@ static int s3c_pcm_set_fmt(struct snd_soc_dai *cpu_dai,
 	ctl = readl(regs + S3C_PCM_CTL);
 
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
-	case SND_SOC_DAIFMT_IB_NF:
+	case SND_SOC_DAIFMT_NB_NF:
 		/* Nothing to do, NB_NF by default */
 		break;
 	default:
@@ -349,6 +341,10 @@ static int s3c_pcm_set_sysclk(struct snd_soc_dai *cpu_dai,
 
 	case S3C_PCM_CLKSRC_MUX:
 		clkctl &= ~S3C_PCM_CLKCTL_SERCLKSEL_PCLK;
+
+		if (clk_get_rate(pcm->cclk) != freq)
+			clk_set_rate(pcm->cclk, freq);
+
 		break;
 
 	default:
@@ -449,7 +445,7 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 
 	pcm->cclk = clk_get(&pdev->dev, "audio-bus");
 	if (IS_ERR(pcm->cclk)) {
-		dev_err(&pdev->dev, "failed to get pcm src_clock\n");
+		dev_err(&pdev->dev, "failed to get audio-bus\n");
 		ret = PTR_ERR(pcm->cclk);
 		goto err1;
 	}

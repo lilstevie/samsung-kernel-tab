@@ -16,7 +16,9 @@
 #include <sound/soc.h>
 #include <sound/pcm_params.h>
 
-#include <plat/audio.h>
+#include <mach/gpio-bank-c.h>
+#include <mach/gpio-bank-h.h>
+#include <plat/gpio-cfg.h>
 
 #include <mach/map.h>
 #include <mach/dma.h>
@@ -24,11 +26,6 @@
 #include "s3c-dma.h"
 #include "regs-i2s-v2.h"
 #include "s3c64xx-i2s.h"
-
-#ifdef CONFIG_SND_SAMSUNG_SOC_I2S_V5
-extern struct snd_soc_dai i2s_sec_fifo_dai;
-extern void s5p_i2s_sec_init(void *, dma_addr_t);
-#endif
 
 static struct s3c2410_dma_client s3c64xx_dma_client_out = {
 	.name		= "I2Sv4 PCM Stereo out"
@@ -53,7 +50,15 @@ static inline struct s3c_i2sv2_info *to_info(struct snd_soc_dai *cpu_dai)
 static int s3c64xx_i2sv4_probe(struct platform_device *pdev,
 			     struct snd_soc_dai *dai)
 {
-	/* do nothing */
+	/* configure GPIO for i2s port */
+	s3c_gpio_cfgpin(S3C64XX_GPC(4), S3C64XX_GPC4_I2S_V40_DO0);
+	s3c_gpio_cfgpin(S3C64XX_GPC(5), S3C64XX_GPC5_I2S_V40_DO1);
+	s3c_gpio_cfgpin(S3C64XX_GPC(7), S3C64XX_GPC7_I2S_V40_DO2);
+	s3c_gpio_cfgpin(S3C64XX_GPH(6), S3C64XX_GPH6_I2S_V40_BCLK);
+	s3c_gpio_cfgpin(S3C64XX_GPH(7), S3C64XX_GPH7_I2S_V40_CDCLK);
+	s3c_gpio_cfgpin(S3C64XX_GPH(8), S3C64XX_GPH8_I2S_V40_LRCLK);
+	s3c_gpio_cfgpin(S3C64XX_GPH(9), S3C64XX_GPH9_I2S_V40_DI);
+
 	return 0;
 }
 
@@ -101,10 +106,8 @@ static struct snd_soc_dai_ops s3c64xx_i2sv4_dai_ops = {
 
 static __devinit int s3c64xx_i2sv4_dev_probe(struct platform_device *pdev)
 {
-	struct s3c_audio_pdata *i2s_pdata;
 	struct s3c_i2sv2_info *i2s;
 	struct snd_soc_dai *dai;
-	struct resource *res;
 	int ret;
 
 	i2s = &s3c64xx_i2sv4;
@@ -136,44 +139,15 @@ static __devinit int s3c64xx_i2sv4_dev_probe(struct platform_device *pdev)
 	i2s->dma_capture = &s3c64xx_i2sv4_pcm_stereo_in;
 	i2s->dma_playback = &s3c64xx_i2sv4_pcm_stereo_out;
 
-	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "Unable to get I2S-TX dma resource\n");
-		return -ENXIO;
-	}
-	i2s->dma_playback->channel = res->start;
-
-	res = platform_get_resource(pdev, IORESOURCE_DMA, 1);
-	if (!res) {
-		dev_err(&pdev->dev, "Unable to get I2S-RX dma resource\n");
-		return -ENXIO;
-	}
-	i2s->dma_capture->channel = res->start;
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "Unable to get I2S SFR address\n");
-		return -ENXIO;
-	}
-
-	if (!request_mem_region(res->start, resource_size(res),
-				"s3c64xx-i2s-v4")) {
-		dev_err(&pdev->dev, "Unable to request SFR region\n");
-		return -EBUSY;
-	}
-	i2s->dma_capture->dma_addr = res->start + S3C2412_IISRXD;
-	i2s->dma_playback->dma_addr = res->start + S3C2412_IISTXD;
+	i2s->dma_capture->channel = DMACH_HSI_I2SV40_RX;
+	i2s->dma_capture->dma_addr = S3C64XX_PA_IISV4 + S3C2412_IISRXD;
+	i2s->dma_playback->channel = DMACH_HSI_I2SV40_TX;
+	i2s->dma_playback->dma_addr = S3C64XX_PA_IISV4 + S3C2412_IISTXD;
 
 	i2s->dma_capture->client = &s3c64xx_dma_client_in;
 	i2s->dma_capture->dma_size = 4;
 	i2s->dma_playback->client = &s3c64xx_dma_client_out;
 	i2s->dma_playback->dma_size = 4;
-
-	i2s_pdata = pdev->dev.platform_data;
-	if (i2s_pdata && i2s_pdata->cfg_gpio && i2s_pdata->cfg_gpio(pdev)) {
-		dev_err(&pdev->dev, "Unable to configure gpio\n");
-		return -EINVAL;
-	}
 
 	i2s->iis_cclk = clk_get(&pdev->dev, "audio-bus");
 	if (IS_ERR(i2s->iis_cclk)) {
@@ -184,33 +158,13 @@ static __devinit int s3c64xx_i2sv4_dev_probe(struct platform_device *pdev)
 
 	clk_enable(i2s->iis_cclk);
 
-	ret = s3c_i2sv2_probe(pdev, dai, i2s,
-			i2s->dma_playback->dma_addr - S3C2412_IISTXD);
+	ret = s3c_i2sv2_probe(pdev, dai, i2s, 0);
 	if (ret)
 		goto err_clk;
-
-	/* I2S Reset */
-	writel(((1<<0)|(1<<31)), i2s->regs + S3C2412_IISCON);
 
 	ret = s3c_i2sv2_register_dai(dai);
 	if (ret != 0)
 		goto err_i2sv2;
-
-#ifdef CONFIG_SND_SAMSUNG_SOC_I2S_V5
-	/* Secondary Stream DAI */
-	i2s_sec_fifo_dai.dev = &pdev->dev;
-	i2s_sec_fifo_dai.playback.rates = S3C64XX_I2S_RATES;
-	i2s_sec_fifo_dai.playback.formats = S3C64XX_I2S_FMTS;
-	i2s_sec_fifo_dai.playback.channels_min = 2;
-	i2s_sec_fifo_dai.playback.channels_max = 2;
-	s5p_i2s_sec_init(i2s->regs,
-		i2s->dma_playback->dma_addr - S3C2412_IISTXD);
-	ret = snd_soc_register_dai(&i2s_sec_fifo_dai);
-	if (ret) {
-		snd_soc_unregister_dai(dai);
-		goto err_i2sv2;
-	}
-#endif
 
 	return 0;
 
