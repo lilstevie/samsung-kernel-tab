@@ -1,6 +1,5 @@
-/* include/linux/uid_stat.h
- *
- * Copyright (C) 2008-2009 Google, Inc.
+/*
+ * Copyright (C) 2008 Samsung Electronics, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -13,17 +12,13 @@
  *
  */
 
-#ifndef __uid_stat_h
-#define __uid_stat_h
+#ifndef __S5PC110_WM8994_H
+#define __S5PC110_WM8994_H
 
-/* Contains definitions for resource tracking per uid. */
+struct wm8994_platform_data {
+	int ldo;
+	int ear_sel;
+	void (*set_mic_bias)(bool on);
+};
 
-#ifdef CONFIG_UID_STAT
-int uid_stat_tcp_snd(uid_t uid, int size);
-int uid_stat_tcp_rcv(uid_t uid, int size);
-#else
-#define uid_stat_tcp_snd(uid, size) do {} while (0);
-#define uid_stat_tcp_rcv(uid, size) do {} while (0);
 #endif
-
-#endif /* _LINUX_UID_STAT_H */
