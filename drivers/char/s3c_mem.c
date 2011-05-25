@@ -21,22 +21,24 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/uaccess.h>
-#include <linux/errno.h> 	/* error codes */
+#include <linux/errno.h>	/* error codes */
 #include <asm/div64.h>
 #include <linux/mm.h>
 #include <linux/tty.h>
 #include <linux/io.h>
 #include <linux/sched.h>
 #include <asm/irq.h>
-#include <asm/cacheflush.h>
 #include <linux/slab.h>
+
 #include <linux/mman.h>
-#include <linux/dma-mapping.h>
 
 #include <linux/unistd.h>
 #include <linux/version.h>
 #include <mach/map.h>
 #include <mach/hardware.h>
+
+#include <asm/cacheflush.h>
+#include <linux/dma-mapping.h>
 
 #include "s3c_mem.h"
 
@@ -280,6 +282,19 @@ int s3c_mem_ioctl(struct inode *inode, struct file *file,
 
 		break;
 
+	case S3C_MEM_CACHE_INV:
+		{
+			struct s3c_mem_dma_param param;
+			if (copy_from_user(&param, (void __user *)arg, sizeof(struct s3c_mem_dma_param)))
+				return -EFAULT;
+
+			dmac_map_area((param.src_addr)&PAGE_MASK, param.size, DMA_FROM_DEVICE);
+			//invalidate_kernel_vmap_range((void *)((param.src_addr)&PAGE_MASK), param.size);
+			return  0;
+		}
+
+		break;
+
 	default:
 		DEBUG("s3c_mem_ioctl() : default !!\n");
 		return -EINVAL;
@@ -320,7 +335,6 @@ int s3c_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 						virt_addr, size, __LINE__);
 
 #ifndef USE_DMA_ALLOC
-		dmac_map_area(virt_addr, size / sizeof(unsigned long), 2);
 		phys_addr = virt_to_phys((unsigned long *)virt_addr);
 #endif
 		physical_address = (unsigned int)phys_addr;

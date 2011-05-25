@@ -10,6 +10,9 @@ source "drivers/of/Kconfig"
 
 source "drivers/parport/Kconfig"
 
+# for TINY_FSR
+source "drivers/tfsr/Kconfig"
+
 source "drivers/pnp/Kconfig"
 
 source "drivers/block/Kconfig"
@@ -114,5 +117,6 @@ source "drivers/staging/Kconfig"
 
 source "drivers/platform/Kconfig"
 
-source "drivers/gib/Kconfig"
+source "drivers/sensor/Kconfig"
+
 endmenu

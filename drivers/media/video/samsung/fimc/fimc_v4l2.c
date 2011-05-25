@@ -19,6 +19,7 @@
 #include <linux/videodev2_samsung.h>
 #include <media/v4l2-ioctl.h>
 #include <plat/fimc.h>
+#include <linux/clk.h>
 
 #include "fimc.h"
 
@@ -47,7 +48,7 @@ static int fimc_reqbufs(struct file *filp, void *fh,
 	int ret = -1;
 
 	if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_reqbufs_capture(ctrl, b);
+		ret = fimc_reqbufs_capture(fh, b);
 	} else if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_reqbufs_output(fh, b);
 	} else {
@@ -65,7 +66,7 @@ static int fimc_querybuf(struct file *filp, void *fh, struct v4l2_buffer *b)
 	int ret = -1;
 
 	if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_querybuf_capture(ctrl, b);
+		ret = fimc_querybuf_capture(fh, b);
 	} else if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_querybuf_output(fh, b);
 	} else {
@@ -80,10 +81,17 @@ static int fimc_querybuf(struct file *filp, void *fh, struct v4l2_buffer *b)
 static int fimc_g_ctrl(struct file *filp, void *fh, struct v4l2_control *c)
 {
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
+	struct s3c_platform_fimc *pdata	= to_fimc_plat(ctrl->dev);
 	int ret = -1;
 
+	/* can get hw version at any time */
+	if (c->id == V4L2_CID_FIMC_VERSION) {
+		c->value = pdata->hw_ver;
+		return 0;
+	}
+
 	if (ctrl->cap != NULL) {
-		ret = fimc_g_ctrl_capture(ctrl, c);
+		ret = fimc_g_ctrl_capture(fh, c);
 	} else if (ctrl->out != NULL) {
 		ret = fimc_g_ctrl_output(fh, c);
 	} else {
@@ -100,9 +108,25 @@ static int fimc_s_ctrl(struct file *filp, void *fh, struct v4l2_control *c)
 	int ret = -1;
 
 	if (ctrl->cap != NULL) {
-		ret = fimc_s_ctrl_capture(ctrl, c);
+		ret = fimc_s_ctrl_capture(fh, c);
 	} else if (ctrl->out != NULL) {
 		ret = fimc_s_ctrl_output(filp, fh, c);
+	} else {
+		fimc_err("%s: Invalid case\n", __func__);
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static int fimc_s_ext_ctrls(struct file *filp, void *fh,
+				struct v4l2_ext_controls *c)
+{
+	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
+	int ret = -1;
+
+	if (ctrl->cap != NULL) {
+		ret = fimc_s_ext_ctrls_capture(fh, c);
 	} else {
 		fimc_err("%s: Invalid case\n", __func__);
 		return -EINVAL;
@@ -117,7 +141,7 @@ static int fimc_cropcap(struct file *filp, void *fh, struct v4l2_cropcap *a)
 	int ret = -1;
 
 	if (a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_cropcap_capture(ctrl, a);
+		ret = fimc_cropcap_capture(fh, a);
 	} else if (a->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_cropcap_output(fh, a);
 	} else {
@@ -135,7 +159,9 @@ static int fimc_g_crop(struct file *filp, void *fh, struct v4l2_crop *a)
 	int ret = -1;
 
 	if (a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_g_crop_capture(ctrl, a);
+		ret = fimc_g_crop_capture(fh, a);
+	} else if (a->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+		ret = fimc_g_crop_output(fh, a);
 	} else {
 		fimc_err("V4L2_BUF_TYPE_VIDEO_CAPTURE and "
 			"V4L2_BUF_TYPE_VIDEO_OUTPUT are only supported\n");
@@ -151,7 +177,7 @@ static int fimc_s_crop(struct file *filp, void *fh, struct v4l2_crop *a)
 	int ret = -1;
 
 	if (a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_s_crop_capture(ctrl, a);
+		ret = fimc_s_crop_capture(fh, a);
 	} else if (a->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_s_crop_output(fh, a);
 	} else {
@@ -166,10 +192,13 @@ static int fimc_s_crop(struct file *filp, void *fh, struct v4l2_crop *a)
 static int fimc_streamon(struct file *filp, void *fh, enum v4l2_buf_type i)
 {
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
+	struct s3c_platform_fimc *pdata;
 	int ret = -1;
 
+	pdata = to_fimc_plat(ctrl->dev);
+
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_streamon_capture(ctrl);
+		ret = fimc_streamon_capture(fh);
 	} else if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_streamon_output(fh);
 	} else {
@@ -184,10 +213,13 @@ static int fimc_streamon(struct file *filp, void *fh, enum v4l2_buf_type i)
 static int fimc_streamoff(struct file *filp, void *fh, enum v4l2_buf_type i)
 {
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
+	struct s3c_platform_fimc *pdata;
 	int ret = -1;
 
+	pdata = to_fimc_plat(ctrl->dev);
+
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_streamoff_capture(ctrl);
+		ret = fimc_streamoff_capture(fh);
 	} else if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_streamoff_output(fh);
 	} else {
@@ -205,7 +237,7 @@ static int fimc_qbuf(struct file *filp, void *fh, struct v4l2_buffer *b)
 	int ret = -1;
 
 	if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_qbuf_capture(ctrl, b);
+		ret = fimc_qbuf_capture(fh, b);
 	} else if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_qbuf_output(fh, b);
 	} else {
@@ -223,7 +255,7 @@ static int fimc_dqbuf(struct file *filp, void *fh, struct v4l2_buffer *b)
 	int ret = -1;
 
 	if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		ret = fimc_dqbuf_capture(ctrl, b);
+		ret = fimc_dqbuf_capture(fh, b);
 	} else if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_dqbuf_output(fh, b);
 	} else {
@@ -241,6 +273,7 @@ const struct v4l2_ioctl_ops fimc_v4l2_ops = {
 	.vidioc_querybuf		= fimc_querybuf,
 	.vidioc_g_ctrl			= fimc_g_ctrl,
 	.vidioc_s_ctrl			= fimc_s_ctrl,
+	.vidioc_s_ext_ctrls		= fimc_s_ext_ctrls,
 	.vidioc_cropcap			= fimc_cropcap,
 	.vidioc_g_crop			= fimc_g_crop,
 	.vidioc_s_crop			= fimc_s_crop,

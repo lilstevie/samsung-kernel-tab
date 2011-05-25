@@ -1,7 +1,7 @@
 /* linux/drivers/video/samsung/s3cfb_ht101hd1.c
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
- *		http://www.samsung.com/
+ *              http://www.samsung.com/
  *
  * HT101HD1-100 XWVGA Landscape LCD module driver for the SMDK
  *
@@ -13,7 +13,7 @@
 #include "s3cfb.h"
 
 static struct s3cfb_lcd ht101hd1 = {
-	.width = 1366,
+	.width = 1376,
 	.height = 768,
 	.bpp = 24,
 	.freq = 60,
@@ -43,3 +43,4 @@ void s3cfb_set_lcd_info(struct s3cfb_global *ctrl)
 	ht101hd1.init_ldi = NULL;
 	ctrl->lcd = &ht101hd1;
 }
+

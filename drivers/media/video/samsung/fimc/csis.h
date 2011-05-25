@@ -1,7 +1,7 @@
 /* linux/drivers/media/video/samsung/csis.h
  *
  * Copyright (c) 2010 Samsung Electronics Co,. Ltd.
- *	http://www.samsung.com/
+ *		http://www.samsung.com/
  *
  * Header file for Samsung MIPI-CSI2 driver
  *
@@ -15,12 +15,6 @@
 
 #define S3C_CSIS_NAME		"s3c-csis"
 #define S3C_CSIS_NR_LANES	1
-
-#ifdef CONFIG_CPU_S5PV310
-#define S3C_CSIS_CH_NUM		2
-#else
-#define S3C_CSIS_CH_NUM		1
-#endif
 
 #define info(args...)	\
 	do { printk(KERN_INFO S3C_CSIS_NAME ": " args); } while (0)
@@ -39,6 +33,7 @@ struct s3c_csis_info {
 	char		name[16];
 	struct device	*dev;
 	struct clk	*clock;
+	struct regulator *regulator;
 	void __iomem	*regs;
 	int		irq;
 	int		nr_lanes;

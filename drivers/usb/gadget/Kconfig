@@ -112,7 +112,7 @@ config	USB_GADGET_SELECTED
 choice
 	prompt "USB Peripheral Controller"
 	depends on USB_GADGET
-	default USB_GADGET_S3C_OTGD if (PLAT_S5P)
+	default USB_GADGET_S3C_OTGD if (ARCH_S5PV210)
 	help
 	   A USB device uses a controller to talk to its host.
 	   Systems should have only one such upstream link.
@@ -349,27 +349,9 @@ config USB_S3C2410_DEBUG
 	boolean "S3C2410 udc debug messages"
 	depends on USB_GADGET_S3C2410
 
-config USB_GADGET_S3C_HSUDC
-	boolean "S3C2416, S3C2443 and S3C2450 USB Device Controller"
-	depends on ARCH_S3C2410
-	select USB_GADGET_DUALSPEED
-	help
-	  Samsung's S3C2416, S3C2443 and S3C2450 is an ARM9 based SoC
-	  integrated with dual speed USB 2.0 device controller. It has
-	  8 endpoints, as well endpoint zero.
-
-	  This driver has been tested on S3C2416 and S3C2450 processors.
-
-config USB_S3C_HSUDC
-
-	tristate
-	depends on USB_GADGET_S3C_HSUDC
-	default USB_GADGET
-	select USB_GADGET_SELECTED
-
 config USB_GADGET_S3C_OTGD
 	boolean "S3C HS USB OTG Device"
-	depends on (PLAT_S5P)
+	depends on (ARCH_S5PV210) && !(USB_S3C_OTG_HOST)
 	help
 	  Samsung's S3C64XX processors include high speed USB OTG2.0
 	  controller. It has 15 configurable endpoints, as well as
@@ -377,9 +359,9 @@ config USB_GADGET_S3C_OTGD
 
 	  This driver has been tested on the S3C6410, S5P6440, S5PC100 processor.
 
-	  Say "y" to link the driver statically, or "m" to build a
-	  dynamically linked module called "s3c-udc-otg" and force all
-	  gadget drivers to also be dynamically linked.
+          Say "y" to link the driver statically, or "m" to build a
+          dynamically linked module called "s3c-udc-otg" and force all
+          gadget drivers to also be dynamically linked.
 
 #
 # Controllers available in both integrated and discrete versions
@@ -587,31 +569,31 @@ config USB_S3C_OTGD
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 	select USB_GADGET_DUALSPEED
-	help
-	  Say "y" to link the driver statically, or "m" to build a
-	  dynamically linked module called "s3c-udc-otg-hs" and force all
-	  gadget drivers to also be dynamically linked.
+        help
+           Say "y" to link the driver statically, or "m" to build a
+           dynamically linked module called "s3c-udc-otg-hs" and force all
+           gadget drivers to also be dynamically linked.
 
 choice
 	prompt "S3C OTGD transfer mode"
 	depends on USB_S3C_OTGD
 	default y
 	help
-	  S3C USB OTG conteroller supports DMA mode and Slave mode
-	  for the dat transfer. You must slect one for the core
-	  operation mode.
+	   S3C USB OTG conteroller supports DMA mode and Slave mode
+	   for the dat transfer. You must slect one for the core
+	   operation mode.
 
 config USB_GADGET_S3C_OTGD_DMA_MODE
 	bool "enabled DMA MODE"
 	depends on USB_GADGET_S3C_OTGD
 	help
-	  S3C USB OTG core operates in DMA mode.
+	   S3C USB OTG core operates in DMA mode.
 
 config USB_GADGET_S3C_OTGD_SLAVE_MODE
 	bool "enabled Slave MODE"
 	depends on USB_GADGET_S3C_OTGD
 	help
-	S3C USB OTG core operates in Slave mode.
+	   S3C USB OTG core operates in Slave mode.
 endchoice
 
 config USB_GADGET_DUALSPEED
@@ -920,6 +902,12 @@ config USB_ANDROID_ACM
 	help
 	  Provides ACM serial function for android gadget driver.
 
+config USB_DUN_SUPPORT
+	boolean "DUN support function"
+	depends on USB_ANDROID_ACM
+	help
+	  Provides USB modem serial driver.
+
 config USB_ANDROID_ADB
 	boolean "Android gadget adb function"
 	depends on USB_ANDROID
@@ -954,12 +942,29 @@ config USB_ANDROID_RNDIS_WCEIS
          If you enable this option, the device is no longer CDC ethernet
          compatible.
 
-
-config USB_ANDROID_ACCESSORY
-	boolean "Android USB accessory function"
+config USB_ANDROID_SAMSUNG_COMPOSITE
+	boolean "Samsung Composite function"
 	depends on USB_ANDROID
 	help
-	  Provides Android USB Accessory support for android gadget driver.
+	  Provides SAMSUNG composite driver using ACM, UMS, ADB, MTP, RNDIS
+
+config USB_ANDROID_SAMSUNG_ESCAPE
+	boolean "Use escape usb host driver in PC side."
+	depends on USB_ANDROID_SAMSUNG_COMPOSITE
+	help
+	  If you enable this option, the device will setting custom IAD for Escape driver.
+
+config CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
+	boolean "Use RNDIS with ms composite in PC side."
+	depends on USB_ANDROID_SAMSUNG_COMPOSITE
+	help
+	  If you enable this option, the device will setting custom IAD for to use ms composite.
+
+config USB_ANDROID_SAMSUNG_MTP
+	boolean "Samsung MTP function"
+	depends on USB_ANDROID
+        help
+	  Provides Media Transfer Protocol (MTP) support for samsung gadget driver.
 
 config USB_CDC_COMPOSITE
 	tristate "CDC Composite Device (Ethernet and ACM)"

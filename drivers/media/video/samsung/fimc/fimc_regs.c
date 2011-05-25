@@ -97,42 +97,6 @@ struct fimc_limit fimc50_limits[FIMC_DEVICES] = {
 	},
 };
 
-struct fimc_limit fimc51_limits[FIMC_DEVICES] = {
-	{
-		.pre_dst_w	= 4224,
-		.bypass_w	= 8192,
-		.trg_h_no_rot	= 4224,
-		.trg_h_rot	= 1920,
-		.real_w_no_rot	= 8192,
-		.real_h_rot	= 1920,
-	}, {
-		.pre_dst_w	= 4224,
-		.bypass_w	= 8192,
-		.trg_h_no_rot	= 4224,
-		.trg_h_rot	= 1920,
-		.real_w_no_rot	= 8192,
-		.real_h_rot	= 1920,
-	}, {
-		.pre_dst_w	= 4224,
-		.bypass_w	= 8192,
-		.trg_h_no_rot	= 4224,
-		.trg_h_rot	= 1920,
-		.real_w_no_rot	= 8192,
-		.real_h_rot	= 1920,
-	},
-#ifdef CONFIG_CPU_S5PV310	
-	{
-
-		.pre_dst_w	= 1920,
-		.bypass_w	= 8192,
-		.trg_h_no_rot	= 1920,
-		.trg_h_rot	= 1280,
-		.real_w_no_rot	= 8192,
-		.real_h_rot	= 1280,
-	},
-#endif
-};
-
 int fimc_hwset_camera_source(struct fimc_control *ctrl)
 {
 	struct s3c_platform_camera *cam = ctrl->cam;
@@ -165,6 +129,7 @@ int fimc_hwset_enable_irq(struct fimc_control *ctrl, int overflow, int level)
 
 	if (level)
 		cfg |= S3C_CIGCTRL_IRQ_LEVEL;
+
 	writel(cfg, ctrl->regs + S3C_CIGCTRL);
 
 	return 0;
@@ -185,6 +150,85 @@ int fimc_hwset_clear_irq(struct fimc_control *ctrl)
 	u32 cfg = readl(ctrl->regs + S3C_CIGCTRL);
 
 	cfg |= S3C_CIGCTRL_IRQ_CLR;
+
+	writel(cfg, ctrl->regs + S3C_CIGCTRL);
+
+	return 0;
+}
+
+int fimc_hwset_output_area_size(struct fimc_control *ctrl, u32 size)
+{
+	u32 cfg = 0;
+
+	cfg = S3C_CITAREA_TARGET_AREA(size);
+
+	writel(cfg, ctrl->regs + S3C_CITAREA);
+
+	return 0;
+}
+
+void fimc_wait_disable_capture(struct fimc_control *ctrl)
+{
+	unsigned long timeo = jiffies + 20; /* timeout of 100 ms */
+	u32 cfg;
+
+	if (!ctrl || !ctrl->cap ||
+			ctrl->cap->fmt.colorspace == V4L2_COLORSPACE_JPEG)
+		return;
+
+	while (time_before(jiffies, timeo)) {
+		cfg = readl(ctrl->regs + S3C_CISTATUS);
+
+		if (0 == (cfg & S3C_CISTATUS_IMGCPTEN))
+			break;
+
+		msleep(10);
+	}
+
+	dev_dbg(ctrl->dev, "IMGCPTEN: Wait time = %d ms\n",
+			jiffies_to_msecs(jiffies - timeo + 20));
+
+	return;
+}
+
+int fimc_hwset_image_effect(struct fimc_control *ctrl)
+{
+	u32 cfg = 0;
+
+	if (ctrl->fe.ie_on) {
+		if (ctrl->fe.ie_after_sc)
+			cfg |= S3C_CIIMGEFF_IE_SC_AFTER;
+
+		cfg |= S3C_CIIMGEFF_FIN(ctrl->fe.fin);
+
+		if (ctrl->fe.fin == FIMC_EFFECT_FIN_ARBITRARY_CBCR)
+			cfg |= S3C_CIIMGEFF_PAT_CB(ctrl->fe.pat_cb) |
+				S3C_CIIMGEFF_PAT_CR(ctrl->fe.pat_cr);
+
+		cfg |= S3C_CIIMGEFF_IE_ENABLE;
+	}
+
+	writel(cfg, ctrl->regs + S3C_CIIMGEFF);
+
+	return 0;
+}
+
+int fimc_hwset_shadow_enable(struct fimc_control *ctrl)
+{
+	u32 cfg = readl(ctrl->regs + S3C_CIGCTRL);
+
+	cfg &= ~S3C_CIGCTRL_SHADOW_DISABLE;
+
+	writel(cfg, ctrl->regs + S3C_CIGCTRL);
+
+	return 0;
+}
+
+int fimc_hwset_shadow_disable(struct fimc_control *ctrl)
+{
+	u32 cfg = readl(ctrl->regs + S3C_CIGCTRL);
+
+	cfg |= S3C_CIGCTRL_SHADOW_DISABLE;
 
 	writel(cfg, ctrl->regs + S3C_CIGCTRL);
 
@@ -413,9 +457,11 @@ int fimc43_hwset_camera_type(struct fimc_control *ctrl)
 
 		/* FIXME: Temporary MIPI CSIS Data 32 bit aligned */
 		if (ctrl->cap->fmt.pixelformat == V4L2_PIX_FMT_JPEG)
-			writel((MIPI_USER_DEF_PACKET_1 | (0x1 << 8)), ctrl->regs + S3C_CSIIMGFMT);
+			writel((MIPI_USER_DEF_PACKET_1 | (0x1 << 8)),
+					ctrl->regs + S3C_CSIIMGFMT);
 		else
-			writel(cam->fmt | (0x1 << 8), ctrl->regs + S3C_CSIIMGFMT);
+			writel(cam->fmt | (0x1 << 8),
+					ctrl->regs + S3C_CSIIMGFMT);
 	} else if (cam->type == CAM_TYPE_ITU) {
 		if (cam->id == CAMERA_PAR_A)
 			cfg |= S3C_CIGCTRL_SELCAM_ITU_A;
@@ -433,58 +479,6 @@ int fimc43_hwset_camera_type(struct fimc_control *ctrl)
 	return 0;
 }
 
-int fimc51_hwset_camera_type(struct fimc_control *ctrl)
-{
-	struct s3c_platform_camera *cam = ctrl->cam;
-	u32 cfg;
-
-	if (!cam) {
-		fimc_err("%s: no active camera\n", __func__);
-		return -ENODEV;
-	}
-
-	cfg = readl(ctrl->regs + S3C_CIGCTRL);
-	cfg &= ~(S3C_CIGCTRL_TESTPATTERN_MASK | S3C_CIGCTRL_SELCAM_ITU_MASK |
-		S3C_CIGCTRL_SELCAM_MIPI_MASK | S3C_CIGCTRL_SELCAM_FIMC_MASK |
-		S3C_CIGCTRL_SELWB_CAMIF_MASK | S3C_CIGCTRL_SELWRITEBACK_MASK);
-
-	/* Interface selection */
-	if (cam->id == CAMERA_WB) {
-		cfg |= S3C_CIGCTRL_SELWB_CAMIF_WRITEBACK;
-		cfg |= S3C_CIGCTRL_SELWRITEBACK_A;
-	} else if (cam->id == CAMERA_WB_B) {
-		cfg |= S3C_CIGCTRL_SELWB_CAMIF_WRITEBACK;
-		cfg |= S3C_CIGCTRL_SELWRITEBACK_B;
-	} else if (cam->type == CAM_TYPE_MIPI) {
-		cfg |= S3C_CIGCTRL_SELCAM_FIMC_MIPI;
-
-		/* V310 Support MIPI A/B support */
-		if (cam->id == CAMERA_CSI_C)
-			cfg |= S3C_CIGCTRL_SELCAM_MIPI_A;
-		else
-			cfg |= S3C_CIGCTRL_SELCAM_MIPI_B;
-
-		/* FIXME: Temporary MIPI CSIS Data 32 bit aligned */
-		if (ctrl->cap->fmt.pixelformat == V4L2_PIX_FMT_JPEG)
-			writel((MIPI_USER_DEF_PACKET_1 | (0x1 << 8)), ctrl->regs + S3C_CSIIMGFMT);
-		else
-			writel(cam->fmt | (0x1 << 8), ctrl->regs + S3C_CSIIMGFMT);
-	} else if (cam->type == CAM_TYPE_ITU) {
-		if (cam->id == CAMERA_PAR_A)
-			cfg |= S3C_CIGCTRL_SELCAM_ITU_A;
-		else
-			cfg |= S3C_CIGCTRL_SELCAM_ITU_B;
-		/* switch to ITU interface */
-		cfg |= S3C_CIGCTRL_SELCAM_FIMC_ITU;
-	} else {
-		fimc_err("%s: invalid camera bus type selected\n", __func__);
-		return -EINVAL;
-	}
-
-	writel(cfg, ctrl->regs + S3C_CIGCTRL);
-
-	return 0;
-}
 int fimc_hwset_camera_type(struct fimc_control *ctrl)
 {
 	struct s3c_platform_fimc *pdata = to_fimc_plat(ctrl->dev);
@@ -497,13 +491,26 @@ int fimc_hwset_camera_type(struct fimc_control *ctrl)
 	case 0x45:
 		fimc43_hwset_camera_type(ctrl);
 		break;
-	case 0x51:
-		fimc51_hwset_camera_type(ctrl);
-		break;
 	default:
 		fimc43_hwset_camera_type(ctrl);
 		break;
 	}
+
+	return 0;
+}
+
+
+int fimc_hwset_jpeg_mode(struct fimc_control *ctrl, bool enable)
+{
+	u32 cfg;
+	cfg = readl(ctrl->regs + S3C_CIGCTRL);
+
+	if (enable)
+		cfg |= S3C_CIGCTRL_CAM_JPEG;
+	else
+		cfg &= ~S3C_CIGCTRL_CAM_JPEG;
+
+	writel(cfg, ctrl->regs + S3C_CIGCTRL);
 
 	return 0;
 }
@@ -775,8 +782,13 @@ int fimc40_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 	cfg &= ~(S3C_CISCCTRL_SCALERBYPASS |
 		S3C_CISCCTRL_SCALEUP_H | S3C_CISCCTRL_SCALEUP_V |
 		S3C_CISCCTRL_MAIN_V_RATIO_MASK |
-		S3C_CISCCTRL_MAIN_H_RATIO_MASK);
+		S3C_CISCCTRL_MAIN_H_RATIO_MASK |
+		S3C_CISCCTRL_CSCR2Y_WIDE |
+		S3C_CISCCTRL_CSCY2R_WIDE);
+
+#ifdef CONFIG_VIDEO_FIMC_RANGE_WIDE
 	cfg |= (S3C_CISCCTRL_CSCR2Y_WIDE | S3C_CISCCTRL_CSCY2R_WIDE);
+#endif
 
 	if (sc->bypass)
 		cfg |= S3C_CISCCTRL_SCALERBYPASS;
@@ -803,8 +815,13 @@ int fimc43_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 	cfg &= ~(S3C_CISCCTRL_SCALERBYPASS |
 		S3C_CISCCTRL_SCALEUP_H | S3C_CISCCTRL_SCALEUP_V |
 		S3C_CISCCTRL_MAIN_V_RATIO_MASK |
-		S3C_CISCCTRL_MAIN_H_RATIO_MASK);
+		S3C_CISCCTRL_MAIN_H_RATIO_MASK |
+		S3C_CISCCTRL_CSCR2Y_WIDE |
+		S3C_CISCCTRL_CSCY2R_WIDE);
+
+#ifdef CONFIG_VIDEO_FIMC_RANGE_WIDE
 	cfg |= (S3C_CISCCTRL_CSCR2Y_WIDE | S3C_CISCCTRL_CSCY2R_WIDE);
+#endif
 
 	if (sc->bypass)
 		cfg |= S3C_CISCCTRL_SCALERBYPASS;
@@ -839,8 +856,13 @@ int fimc50_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 	cfg &= ~(S3C_CISCCTRL_SCALERBYPASS |
 		S3C_CISCCTRL_SCALEUP_H | S3C_CISCCTRL_SCALEUP_V |
 		S3C_CISCCTRL_MAIN_V_RATIO_MASK |
-		S3C_CISCCTRL_MAIN_H_RATIO_MASK);
+		S3C_CISCCTRL_MAIN_H_RATIO_MASK |
+		S3C_CISCCTRL_CSCR2Y_WIDE |
+		S3C_CISCCTRL_CSCY2R_WIDE);
+
+#ifdef CONFIG_VIDEO_FIMC_RANGE_WIDE
 	cfg |= (S3C_CISCCTRL_CSCR2Y_WIDE | S3C_CISCCTRL_CSCY2R_WIDE);
+#endif
 
 	if (sc->bypass)
 		cfg |= S3C_CISCCTRL_SCALERBYPASS;
@@ -880,13 +902,24 @@ int fimc_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 		fimc43_hwset_scaler(ctrl, sc);
 		break;
 	case 0x50:
-	case 0x51:
 		fimc50_hwset_scaler(ctrl, sc);
 		break;
 	default:
 		fimc43_hwset_scaler(ctrl, sc);
 		break;
 	}
+
+	return 0;
+}
+
+
+int fimc_hwset_scaler_bypass(struct fimc_control *ctrl)
+{
+	u32 cfg = readl(ctrl->regs + S3C_CISCCTRL);
+
+	cfg |= S3C_CISCCTRL_SCALERBYPASS;
+
+	writel(cfg, ctrl->regs + S3C_CISCCTRL);
 
 	return 0;
 }
@@ -1156,11 +1189,19 @@ int fimc_hwset_input_colorspace(struct fimc_control *ctrl, u32 pixelformat)
 	switch (pixelformat) {
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		cfg |= S3C_MSCTRL_INFORMAT_YCBCR420;
 		break;
-	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YUYV:		/* fall through */
+	case V4L2_PIX_FMT_UYVY:		/* fall through */
+	case V4L2_PIX_FMT_YVYU:		/* fall through */
+	case V4L2_PIX_FMT_VYUY:
 		cfg |= S3C_MSCTRL_INFORMAT_YCBCR422_1PLANE;
+		break;
+	case V4L2_PIX_FMT_NV16:		/* fall through */
+	case V4L2_PIX_FMT_NV61:
+		cfg |= S3C_MSCTRL_INFORMAT_YCBCR422;
 		break;
 	case V4L2_PIX_FMT_RGB565:	/* fall through */
 	case V4L2_PIX_FMT_RGB32:
@@ -1190,9 +1231,30 @@ int fimc_hwset_input_yuv(struct fimc_control *ctrl, u32 pixelformat)
 	case V4L2_PIX_FMT_YUYV:		/* fall through */
 		cfg |= S3C_MSCTRL_ORDER422_YCBYCR;
 		break;
+	case V4L2_PIX_FMT_UYVY:
+		cfg |= S3C_MSCTRL_ORDER422_CBYCRY;
+		break;
+	case V4L2_PIX_FMT_YVYU:
+		cfg |= S3C_MSCTRL_ORDER422_YCRYCB;
+		break;
+	case V4L2_PIX_FMT_VYUY:
+		cfg |= S3C_MSCTRL_ORDER422_CRYCBY;
+		break;
 	case V4L2_PIX_FMT_NV12:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		cfg |= S3C_MSCTRL_ORDER2P_LSB_CBCR;
+		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
+		break;
+	case V4L2_PIX_FMT_NV21:
+		cfg |= S3C_MSCTRL_ORDER2P_LSB_CRCB;
+		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
+		break;
+	case V4L2_PIX_FMT_NV16:
+		cfg |= S3C_MSCTRL_ORDER2P_LSB_CBCR;
+		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
+		break;
+	case V4L2_PIX_FMT_NV61:
+		cfg |= S3C_MSCTRL_ORDER2P_LSB_CRCB;
 		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
 		break;
 	case V4L2_PIX_FMT_RGB565:	/* fall through */
@@ -1261,6 +1323,25 @@ int fimc_hwset_stop_input_dma(struct fimc_control *ctrl)
 	writel(cfg, ctrl->regs + S3C_MSCTRL);
 
 	return 0;
+}
+
+void fimc_wait_stop_processing(struct fimc_control *ctrl)
+{
+	fimc_hwget_frame_end(ctrl);
+	fimc_hwget_last_frame_end(ctrl);
+}
+
+void fimc_hwset_stop_processing(struct fimc_control *ctrl)
+{
+	fimc_wait_stop_processing(ctrl);
+
+	fimc_hwset_stop_scaler(ctrl);
+	fimc_hwset_disable_capture(ctrl);
+	fimc_hwset_stop_input_dma(ctrl);
+
+	/* We need to wait for sometime after processing is stopped.
+	 * This is required for obtaining clean buffer for DMA processing. */
+	fimc_wait_stop_processing(ctrl);
 }
 
 int fimc40_hwset_output_offset(struct fimc_control *ctrl, u32 pixelformat,
@@ -1349,10 +1430,6 @@ int fimc50_hwset_output_offset(struct fimc_control *ctrl, u32 pixelformat,
 {
 	u32 cfg_y = 0, cfg_cb = 0, cfg_cr = 0;
 
-	if (!crop->left && !crop->top && (bounds->width == crop->width) &&
-		(bounds->height == crop->height))
-		return -EINVAL;
-
 	fimc_dbg("%s: left: %d, top: %d, width: %d, height: %d\n",
 		__func__, crop->left, crop->top, crop->width, crop->height);
 
@@ -1429,7 +1506,7 @@ int fimc_hwset_output_offset(struct fimc_control *ctrl, u32 pixelformat,
 {
 	struct s3c_platform_fimc *pdata = to_fimc_plat(ctrl->dev);
 
-	if (pdata->hw_ver >= 0x50)
+	if (pdata->hw_ver == 0x50 || pdata->hw_ver == 0x45)
 		fimc50_hwset_output_offset(ctrl, pixelformat, bounds, crop);
 	else
 		fimc40_hwset_output_offset(ctrl, pixelformat, bounds, crop);
@@ -1487,6 +1564,9 @@ int fimc50_hwset_input_offset(struct fimc_control *ctrl, u32 pixelformat,
 		(bounds->height != crop->height)) {
 		switch (pixelformat) {
 		case V4L2_PIX_FMT_YUYV:		/* fall through */
+		case V4L2_PIX_FMT_UYVY:		/* fall through */
+		case V4L2_PIX_FMT_YVYU:		/* fall through */
+		case V4L2_PIX_FMT_VYUY:		/* fall through */
 		case V4L2_PIX_FMT_RGB565:
 			cfg_y |= S3C_CIIYOFF_HORIZONTAL(crop->left);
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
@@ -1496,7 +1576,15 @@ int fimc50_hwset_input_offset(struct fimc_control *ctrl, u32 pixelformat,
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
 			break;
 		case V4L2_PIX_FMT_NV12: /* fall through*/
+		case V4L2_PIX_FMT_NV21: /* fall through*/
 		case V4L2_PIX_FMT_NV12T:
+			cfg_y |= S3C_CIIYOFF_HORIZONTAL(crop->left);
+			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
+			cfg_cb |= S3C_CIICBOFF_HORIZONTAL(crop->left);
+			cfg_cb |= S3C_CIICBOFF_VERTICAL(crop->top);
+			break;
+		case V4L2_PIX_FMT_NV16:		/* fall through */
+		case V4L2_PIX_FMT_NV61:
 			cfg_y |= S3C_CIIYOFF_HORIZONTAL(crop->left);
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
 			cfg_cb |= S3C_CIICBOFF_HORIZONTAL(crop->left);
@@ -1529,7 +1617,7 @@ int fimc_hwset_input_offset(struct fimc_control *ctrl, u32 pixelformat,
 {
 	struct s3c_platform_fimc *pdata = to_fimc_plat(ctrl->dev);
 
-	if (pdata->hw_ver >= 0x50)
+	if (pdata->hw_ver == 0x50)
 		fimc50_hwset_input_offset(ctrl, pixelformat, bounds, crop);
 	else
 		fimc40_hwset_input_offset(ctrl, pixelformat, bounds, crop);
@@ -1689,61 +1777,5 @@ int fimc_hwset_input_lineskip(struct fimc_control *ctrl)
 
 int fimc_hw_reset_camera(struct fimc_control *ctrl)
 {
-	u32 cfg = 0;
-	cfg = readl(ctrl->regs + S3C_CIGCTRL);
-	cfg &= ~S3C_CIGCTRL_CAMRST_A;
-
-	writel(cfg, ctrl->regs + S3C_CIGCTRL);
-
-	cfg = readl(ctrl->regs + S3C_CIGCTRL);
-	cfg |= S3C_CIGCTRL_CAMRST_A;
-
-	writel(cfg, ctrl->regs + S3C_CIGCTRL);
-
 	return 0;
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwset_output_buf_sequence(struct fimc_control *ctrl, u32 shift, u32 enable)
-{
-	u32 cfg = readl(ctrl->regs + S3C_CIFCNTSEQ);
-	u32 mask = 0x00000001 << shift;
-
-	cfg &= (~mask);
-	cfg |= (enable << shift);
-	writel(cfg, ctrl->regs + S3C_CIFCNTSEQ);
-	return 0;
-}
-
-int fimc_hwget_output_buf_sequence(struct fimc_control *ctrl)
-{
-	u32 cfg = readl(ctrl->regs + S3C_CIFCNTSEQ);
-	return cfg;
-}
-/* Above FIMC v5.1 */
-int fimc_hw_reset_output_buf_sequence(struct fimc_control *ctrl)
-{
-	writel(0x0, ctrl->regs + S3C_CIFCNTSEQ);
-	return 0;
-}
-
-void fimc_hwset_output_buf_sequence_all(struct fimc_control *ctrl, u32 framecnt_seq)
-{
-	writel(framecnt_seq, ctrl->regs + S3C_CIFCNTSEQ);
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwget_before_frame_count(struct fimc_control *ctrl)
-{
-	u32 before = readl(ctrl->regs + S3C_CISTATUS2);
-	before &= 0x00001f80; /* [12:7] FrameCnt_before */
-	return before >> 7;
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwget_present_frame_count(struct fimc_control *ctrl)
-{
-	u32 present = readl(ctrl->regs + S3C_CISTATUS2);
-	present &= 0x0000003f; /* [5:0] FrameCnt_present */
-	return present >> 0;
 }

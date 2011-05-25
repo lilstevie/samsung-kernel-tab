@@ -307,12 +307,23 @@ config BACKLIGHT_PCF50633
 	  If you have a backlight driven by a NXP PCF50633 MFD, say Y here to
 	  enable its driver.
 
-config BACKLIGHT_S5M8751
-	tristate "Backlight Driver for S5M8751 using WLED"
-	depends on BACKLIGHT_CLASS_DEVICE && MFD_S5M8751
-	help
-	  If you have a LCD backlight connected to the WLED output of
-	  S5M8751 WLED output, say Y here to enable this driver.
+config BACKLIGHT_NT39411B
+        bool "NT39411 Backlight Driver"
+        depends on FB_S3C_LVDS
+        default n
+        help
+
+config BACKLIGHT_MDNIE_PWM
+        bool "mDNIe PWM Backlight Driver"
+        depends on FB_S3C_LVDS && FB_S3C_MDNIE
+        default n
+        help
+        
+config BACKLIGHT_CMC623_PWM
+        bool "CMC623 PWM Backlight Driver"
+        depends on FB_S3C_LVDS && FB_S3C_CMC623
+        default y
+        help
 
 endif # BACKLIGHT_CLASS_DEVICE
 

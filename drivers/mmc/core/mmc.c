@@ -234,13 +234,8 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
-		if (card->ext_csd.sectors) {
-			unsigned boot_sectors;
-			/* size is in 256K chunks, i.e. 512 sectors each */
-			boot_sectors = ext_csd[EXT_CSD_BOOT_SIZE_MULTI] * 512;
-			card->ext_csd.sectors -= boot_sectors;
+		if (card->ext_csd.sectors)
 			mmc_card_set_blockaddr(card);
-		}
 	}
 
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
@@ -379,6 +374,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		card->type = MMC_TYPE_MMC;
 		card->rca = 1;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
+		host->card = card;
 	}
 
 	/*
@@ -464,27 +460,15 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	 * Activate wide bus (if supported).
 	 */
 	if ((card->csd.mmca_vsn >= CSD_SPEC_VER_4) &&
-	    (host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA |
-	     			MMC_CAP_DDR))) {
+	    (host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA))) {
 		unsigned ext_csd_bit, bus_width;
 
-		if ((host->caps & MMC_CAP_DDR) &&
-				(card->ext_csd.rev >= EXT_CSD_REV_1_5)) {
-			if (host->caps & MMC_CAP_8_BIT_DATA) {
-				ext_csd_bit = EXT_CSD_BUS_WIDTH_8_DDR;
-				bus_width = MMC_BUS_WIDTH_8_DDR;
-			} else {
-				ext_csd_bit = EXT_CSD_BUS_WIDTH_4_DDR;
-				bus_width = MMC_BUS_WIDTH_4_DDR;
-			}
+		if (host->caps & MMC_CAP_8_BIT_DATA) {
+			ext_csd_bit = EXT_CSD_BUS_WIDTH_8;
+			bus_width = MMC_BUS_WIDTH_8;
 		} else {
-			if (host->caps & MMC_CAP_8_BIT_DATA) {
-				ext_csd_bit = EXT_CSD_BUS_WIDTH_8;
-				bus_width = MMC_BUS_WIDTH_8;
-			} else {
-				ext_csd_bit = EXT_CSD_BUS_WIDTH_4;
-				bus_width = MMC_BUS_WIDTH_4;
-			}
+			ext_csd_bit = EXT_CSD_BUS_WIDTH_4;
+			bus_width = MMC_BUS_WIDTH_4;
 		}
 
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -503,14 +487,13 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		}
 	}
 
-	if (!oldcard)
-		host->card = card;
-
 	return 0;
 
 free_card:
-	if (!oldcard)
+	if (!oldcard) {
 		mmc_remove_card(card);
+		host->card = NULL;
+	}
 err:
 
 	return err;

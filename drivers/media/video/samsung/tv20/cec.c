@@ -1,9 +1,9 @@
 /* linux/drivers/media/video/samsung/tv20/cec.c
  *
- * Copyright (c) 2009 Samsung Electronics
- * 	http://www.samsung.com/
+ * cec interface file for Samsung TVOut driver (only s5pv210)
  *
- * cec interface file for Samsung TVOut driver
+ * Copyright (c) 2010 Samsung Electronics
+ * 	http://www.samsungsemi.com/
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -20,14 +20,15 @@
 #include <linux/poll.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
-#include <linux/slab.h>
+
 #include <mach/gpio.h>
 #include <plat/gpio-cfg.h>
 #include <mach/regs-gpio.h>
 
+#include "s5p_tv.h"
 #include "cec.h"
-#include "s5p_tv_base.h"
 
+/*#define CECDEBUG*/
 #ifdef CECDEBUG
 #define CECIFPRINTK(fmt, args...) \
 	printk(KERN_INFO "\t[CEC_IF] %s: " fmt, __func__ , ## args)
@@ -35,51 +36,72 @@
 #define CECIFPRINTK(fmt, args...)
 #endif
 
+static struct cec_rx_struct cec_rx_struct;
+static struct cec_tx_struct cec_tx_struct;
 
 static bool hdmi_on;
 
+/**
+ * Change CEC Tx state to state
+ * @param state [in] new CEC Tx state.
+ */
+void __s5p_cec_set_tx_state(enum cec_state state)
+{
+	atomic_set(&cec_tx_struct.state, state);
+}
+
+/**
+ * Change CEC Rx state to @c state.
+ * @param state [in] new CEC Rx state.
+ */
+void __s5p_cec_set_rx_state(enum cec_state state)
+{
+	atomic_set(&cec_rx_struct.state, state);
+}
 
 
-static int s5p_cec_open(struct inode *inode, struct file *file)
+int s5p_cec_open(struct inode *inode, struct file *file)
 {
 	s5p_tv_clk_gate(true);
 
 	hdmi_on = true;
 
-	s5p_cec_reset();
+	__s5p_cec_reset();
 
-	s5p_cec_set_divider();
+	__s5p_cec_set_divider();
 
-	s5p_cec_threshold();
+	__s5p_cec_threshold();
 
-	s5p_cec_unmask_tx_interrupts();
+	__s5p_cec_unmask_tx_interrupts();
 
-	s5p_cec_set_rx_state(STATE_RX);
-	s5p_cec_unmask_rx_interrupts();
-	s5p_cec_enable_rx();
+	__s5p_cec_set_rx_state(STATE_RX);
+	__s5p_cec_unmask_rx_interrupts();
+	__s5p_cec_enable_rx();
 
 	return 0;
 }
 
-static int s5p_cec_release(struct inode *inode, struct file *file)
+int s5p_cec_release(struct inode *inode, struct file *file)
 {
 	s5p_tv_clk_gate(false);
 
 	hdmi_on = false;
 
-	s5p_cec_mask_tx_interrupts();
-	s5p_cec_mask_rx_interrupts();
+	__s5p_cec_mask_tx_interrupts();
+	__s5p_cec_mask_rx_interrupts();
+
 
 	return 0;
 }
 
-static ssize_t s5p_cec_read(struct file *file, char __user *buffer,
-			size_t count, loff_t *ppos)
+ssize_t s5p_cec_read(struct file *file, char __user *buffer, size_t count,
+	loff_t *ppos)
 {
 	ssize_t retval;
 
 	if (wait_event_interruptible(cec_rx_struct.waitq,
-			atomic_read(&cec_rx_struct.state) == STATE_DONE)) {
+		atomic_read(&cec_rx_struct.state)
+		== STATE_DONE)) {
 		return -ERESTARTSYS;
 	}
 
@@ -87,27 +109,25 @@ static ssize_t s5p_cec_read(struct file *file, char __user *buffer,
 
 	if (cec_rx_struct.size > count) {
 		spin_unlock_irq(&cec_rx_struct.lock);
-
 		return -1;
 	}
 
 	if (copy_to_user(buffer, cec_rx_struct.buffer, cec_rx_struct.size)) {
 		spin_unlock_irq(&cec_rx_struct.lock);
 		printk(KERN_ERR " copy_to_user() failed!\n");
-
 		return -EFAULT;
 	}
 
 	retval = cec_rx_struct.size;
 
-	s5p_cec_set_rx_state(STATE_RX);
+	__s5p_cec_set_rx_state(STATE_RX);
 	spin_unlock_irq(&cec_rx_struct.lock);
 
 	return retval;
 }
 
-static ssize_t s5p_cec_write(struct file *file, const char __user *buffer,
-			size_t count, loff_t *ppos)
+ssize_t s5p_cec_write(struct file *file, const char __user *buffer,
+	size_t count, loff_t *ppos)
 {
 	char *data;
 
@@ -120,18 +140,16 @@ static ssize_t s5p_cec_write(struct file *file, const char __user *buffer,
 
 	if (!data) {
 		printk(KERN_ERR " kmalloc() failed!\n");
-
 		return -1;
 	}
 
 	if (copy_from_user(data, buffer, count)) {
 		printk(KERN_ERR " copy_from_user() failed!\n");
 		kfree(data);
-
 		return -EFAULT;
 	}
 
-	s5p_cec_copy_packet(data, count);
+	__s5p_cec_copy_packet(data, count);
 
 	kfree(data);
 
@@ -139,7 +157,6 @@ static ssize_t s5p_cec_write(struct file *file, const char __user *buffer,
 	if (wait_event_interruptible(cec_tx_struct.waitq,
 		atomic_read(&cec_tx_struct.state)
 		!= STATE_TX)) {
-
 		return -ERESTARTSYS;
 	}
 
@@ -149,12 +166,13 @@ static ssize_t s5p_cec_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static int s5p_cec_ioctl(struct inode *inode, struct file *file, u32 cmd,
-			unsigned long arg)
+int s5p_cec_ioctl(struct inode *inode, struct file *file, u32 cmd,
+	unsigned long arg)
 {
 	u32 laddr;
 
 	switch (cmd) {
+
 	case CEC_IOC_SETLADDR:
 		CECIFPRINTK("ioctl(CEC_IOC_SETLADDR)\n");
 
@@ -163,7 +181,8 @@ static int s5p_cec_ioctl(struct inode *inode, struct file *file, u32 cmd,
 
 		CECIFPRINTK("logical address = 0x%02x\n", laddr);
 
-		s5p_cec_set_addr(laddr);
+		__s5p_cec_set_addr(laddr);
+
 		break;
 
 	default:
@@ -173,7 +192,7 @@ static int s5p_cec_ioctl(struct inode *inode, struct file *file, u32 cmd,
 	return 0;
 }
 
-static u32 s5p_cec_poll(struct file *file, poll_table *wait)
+u32 s5p_cec_poll(struct file *file, poll_table *wait)
 {
 	poll_wait(file, &cec_rx_struct.waitq, wait);
 
@@ -199,23 +218,40 @@ static struct miscdevice cec_misc_device = {
 	.fops  = &cec_fops,
 };
 
-static irqreturn_t s5p_cec_irq_handler(int irq, void *dev_id)
+
+/**
+ * @brief CEC interrupt handler
+ *
+ * Handles interrupt requests from CEC hardware. \n
+ * Action depends on current state of CEC hardware.
+ */
+irqreturn_t s5p_cec_irq_handler(int irq, void *dev_id)
 {
 
 	u32 status = 0;
 
-	status = s5p_cec_get_status();
+	/* read flag register */
+
+
+	/* is this our interrupt? */
+/*
+	if (!(flag & (1 << HDMI_IRQ_CEC))) {
+		return IRQ_NONE;
+	}
+*/
+	status = __s5p_cec_get_status();
 
 	if (status & CEC_STATUS_TX_DONE) {
 		if (status & CEC_STATUS_TX_ERROR) {
 			CECIFPRINTK(" CEC_STATUS_TX_ERROR!\n");
-			s5p_cec_set_tx_state(STATE_ERROR);
+			__s5p_cec_set_tx_state(STATE_ERROR);
 		} else {
 			CECIFPRINTK(" CEC_STATUS_TX_DONE!\n");
-			s5p_cec_set_tx_state(STATE_DONE);
+			__s5p_cec_set_tx_state(STATE_DONE);
 		}
 
-		s5p_clr_pending_tx();
+		__s5p_clr_pending_tx();
+
 
 		wake_up_interruptible(&cec_tx_struct.waitq);
 	}
@@ -223,7 +259,7 @@ static irqreturn_t s5p_cec_irq_handler(int irq, void *dev_id)
 	if (status & CEC_STATUS_RX_DONE) {
 		if (status & CEC_STATUS_RX_ERROR) {
 			CECIFPRINTK(" CEC_STATUS_RX_ERROR!\n");
-			s5p_cec_rx_reset();
+			__s5p_cec_rx_reset();
 
 		} else {
 			u32 size;
@@ -235,19 +271,20 @@ static irqreturn_t s5p_cec_irq_handler(int irq, void *dev_id)
 
 			spin_lock(&cec_rx_struct.lock);
 
-			s5p_cec_get_rx_buf(size, cec_rx_struct.buffer);
+			__s5p_cec_get_rx_buf(size, cec_rx_struct.buffer);
 
 			cec_rx_struct.size = size;
 
-			s5p_cec_set_rx_state(STATE_DONE);
+			__s5p_cec_set_rx_state(STATE_DONE);
 
 			spin_unlock(&cec_rx_struct.lock);
 
-			s5p_cec_enable_rx();
+			__s5p_cec_enable_rx();
 		}
 
 		/* clear interrupt pending bit */
-		s5p_clr_pending_rx();
+		__s5p_clr_pending_rx();
+
 
 		wake_up_interruptible(&cec_rx_struct.waitq);
 	}
@@ -265,30 +302,25 @@ static int __init s5p_cec_probe(struct platform_device *pdev)
 	s3c_gpio_setpull(S5PV210_GPH1(4), S3C_GPIO_PULL_NONE);
 
 	/* get ioremap addr */
-	s5p_cec_mem_probe(pdev);
+	__s5p_cec_probe(pdev);
 
 	if (misc_register(&cec_misc_device)) {
 		printk(KERN_WARNING " Couldn't register device 10, %d.\n",
 			CEC_MINOR);
-
 		return -EBUSY;
 	}
 
 	irq_num = platform_get_irq(pdev, 0);
-
 	if (irq_num < 0) {
 		printk(KERN_ERR  "failed to get %s irq resource\n", "cec");
 		ret = -ENOENT;
-
 		return ret;
 	}
 
 	ret = request_irq(irq_num, s5p_cec_irq_handler, IRQF_DISABLED,
 		pdev->name, &pdev->id);
-
 	if (ret != 0) {
 		printk(KERN_ERR  "failed to install %s irq (%d)\n", "cec", ret);
-
 		return ret;
 	}
 
@@ -302,7 +334,6 @@ static int __init s5p_cec_probe(struct platform_device *pdev)
 	if (!buffer) {
 		printk(KERN_ERR " kmalloc() failed!\n");
 		misc_deregister(&cec_misc_device);
-
 		return -EIO;
 	}
 
@@ -313,13 +344,19 @@ static int __init s5p_cec_probe(struct platform_device *pdev)
 	return 0;
 }
 
+/*
+ *  Remove
+ */
 static int s5p_cec_remove(struct platform_device *pdev)
 {
 	return 0;
 }
 
 #ifdef CONFIG_PM
-static int s5p_cec_suspend(struct platform_device *dev, pm_message_t state)
+/*
+ *  Suspend
+ */
+int s5p_cec_suspend(struct platform_device *dev, pm_message_t state)
 {
 	if (hdmi_on)
 		s5p_tv_clk_gate(false);
@@ -327,7 +364,10 @@ static int s5p_cec_suspend(struct platform_device *dev, pm_message_t state)
 	return 0;
 }
 
-static int s5p_cec_resume(struct platform_device *dev)
+/*
+ *  Resume
+ */
+int s5p_cec_resume(struct platform_device *dev)
 {
 	if (hdmi_on)
 		s5p_tv_clk_gate(true);
@@ -351,19 +391,21 @@ static struct platform_driver s5p_cec_driver = {
 };
 
 static char banner[] __initdata =
-	"S5P CEC Driver, (c) 2009 Samsung Electronics\n";
+	"S5P CEC Driver, (c) 2010 Samsung Electronics\n";
 
-static int __init s5p_cec_init(void)
+int __init s5p_cec_init(void)
 {
 	int ret;
-
+#if defined (CONFIG_TARGET_LOCALE_EUR) || defined (CONFIG_TARGET_LOCALE_HKTW) || defined (CONFIG_TARGET_LOCALE_HKTW_FET) || defined (CONFIG_TARGET_LOCALE_VZW) || defined (CONFIG_TARGET_LOCALE_USAGSM)
+	if(HWREV < 0x8)
+		return -1;
+#endif			
 	printk(banner);
 
 	ret = platform_driver_register(&s5p_cec_driver);
 
 	if (ret) {
 		printk(KERN_ERR "Platform Device Register Failed %d\n", ret);
-
 		return -1;
 	}
 
@@ -375,11 +417,13 @@ static void __exit s5p_cec_exit(void)
 	kfree(cec_rx_struct.buffer);
 
 	platform_driver_unregister(&s5p_cec_driver);
+
 }
 
 module_init(s5p_cec_init);
 module_exit(s5p_cec_exit);
 
 MODULE_AUTHOR("SangPil Moon");
-MODULE_DESCRIPTION("S5P CEC driver");
+MODULE_DESCRIPTION("SS5PC11X CEC driver");
 MODULE_LICENSE("GPL");
+

@@ -88,7 +88,7 @@ struct spi_gpio {
 
 /*----------------------------------------------------------------------*/
 
-static inline const struct spi_gpio_platform_data * __pure
+static inline const struct spi_gpio_platform_data *__pure
 spi_to_pdata(const struct spi_device *spi)
 {
 	const struct spi_bitbang	*bang;
@@ -180,8 +180,10 @@ static void spi_gpio_chipselect(struct spi_device *spi, int is_active)
 	if (is_active)
 		setsck(spi, spi->mode & SPI_CPOL);
 
-	/* SPI is normally active-low */
-	gpio_set_value(cs, (spi->mode & SPI_CS_HIGH) ? is_active : !is_active);
+	if (cs != SPI_GPIO_NO_CHIPSELECT) {
+		/* SPI is normally active-low */
+		gpio_set_value(cs, (spi->mode & SPI_CS_HIGH) ? is_active : !is_active);
+	}
 }
 
 static int spi_gpio_setup(struct spi_device *spi)
@@ -193,15 +195,17 @@ static int spi_gpio_setup(struct spi_device *spi)
 		return -EINVAL;
 
 	if (!spi->controller_state) {
-		status = gpio_request(cs, dev_name(&spi->dev));
-		if (status)
-			return status;
-		status = gpio_direction_output(cs, spi->mode & SPI_CS_HIGH);
+		if (cs != SPI_GPIO_NO_CHIPSELECT) {
+			status = gpio_request(cs, dev_name(&spi->dev));
+			if (status)
+				return status;
+			status = gpio_direction_output(cs, spi->mode & SPI_CS_HIGH);
+		}
 	}
 	if (!status)
 		status = spi_bitbang_setup(spi);
 	if (status) {
-		if (!spi->controller_state)
+		if (!spi->controller_state && cs != SPI_GPIO_NO_CHIPSELECT)
 			gpio_free(cs);
 	}
 	return status;
@@ -211,7 +215,8 @@ static void spi_gpio_cleanup(struct spi_device *spi)
 {
 	unsigned long	cs = (unsigned long) spi->controller_data;
 
-	gpio_free(cs);
+	if (cs != SPI_GPIO_NO_CHIPSELECT)
+		gpio_free(cs);
 	spi_bitbang_cleanup(spi);
 }
 
@@ -253,8 +258,7 @@ spi_gpio_request(struct spi_gpio_platform_data *pdata, const char *label)
 	goto done;
 
 free_miso:
-	if (gpio_is_valid(SPI_MISO_GPIO))
-		gpio_free(SPI_MISO_GPIO);
+	gpio_free(SPI_MISO_GPIO);
 free_mosi:
 	gpio_free(SPI_MOSI_GPIO);
 done:
@@ -294,7 +298,6 @@ static int __init spi_gpio_probe(struct platform_device *pdev)
 	master->num_chipselect = SPI_N_CHIPSEL;
 	master->setup = spi_gpio_setup;
 	master->cleanup = spi_gpio_cleanup;
-	master->mode_bits = SPI_CPOL | SPI_CPHA;
 
 	spi_gpio->bitbang.master = spi_master_get(master);
 	spi_gpio->bitbang.chipselect = spi_gpio_chipselect;

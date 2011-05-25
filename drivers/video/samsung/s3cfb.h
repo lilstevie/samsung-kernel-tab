@@ -1,7 +1,7 @@
 /* linux/drivers/video/samsung/s3cfb.h
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
- *		http://www.samsung.com/
+ *              http://www.samsung.com/
  *
  * Header file for Samsung Display Driver (FIMD) driver
  *
@@ -11,15 +11,25 @@
 */
 
 #ifndef _S3CFB_H
-#define _S3CFB_H __FILE__
+#define _S3CFB_H
 
 #ifdef __KERNEL__
+#include <linux/wait.h>
 #include <linux/mutex.h>
 #include <linux/fb.h>
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#include <linux/earlysuspend.h>
+#endif
 #include <plat/fb.h>
 #endif
 
+/*
+ * C O M M O N   D E F I N I T I O N S
+ *
+*/
 #define S3CFB_NAME		"s3cfb"
+
 #define S3CFB_AVALUE(r, g, b)	(((r & 0xf) << 8) | \
 				((g & 0xf) << 4) | \
 				((b & 0xf) << 0))
@@ -27,12 +37,10 @@
 				((g & 0xff) << 8) | \
 				((b & 0xff) << 0))
 
-#if defined(CONFIG_FB_S3C_DUAL_LCD)
-#define FIMD_MAX		2
-#else
-#define FIMD_MAX		1
-#endif
-
+/*
+ * E N U M E R A T I O N S
+ *
+*/
 enum s3cfb_data_path_t {
 	DATA_PATH_FIFO = 0,
 	DATA_PATH_DMA = 1,
@@ -72,12 +80,33 @@ enum s3cfb_mem_owner_t {
 	DMA_MEM_OTHER	= 2,
 };
 
+/*
+ * F I M D   S T R U C T U R E S
+ *
+*/
+
+/*
+ * struct s3cfb_alpha
+ * @mode:		blending method (plane/pixel)
+ * @channel:		alpha channel (0/1)
+ * @value:		alpha value (for plane blending)
+*/
 struct s3cfb_alpha {
 	enum		s3cfb_alpha_t mode;
 	int		channel;
 	unsigned int	value;
 };
 
+/*
+ * struct s3cfb_chroma
+ * @enabled:		if chroma key function enabled
+ * @blended:		if chroma key alpha blending enabled (unused)
+ * @key:		chroma value to be applied
+ * @comp_key:		compare key (unused)
+ * @alpha:		alpha value for chroma (unused)
+ * @dir:		chroma key direction (fg/bg, fixed to fg)
+ *
+*/
 struct s3cfb_chroma {
 	int		enabled;
 	int		blended;
@@ -87,6 +116,30 @@ struct s3cfb_chroma {
 	enum		s3cfb_chroma_dir_t dir;
 };
 
+/*
+ * struct s3cfb_lcd_polarity
+ * @rise_vclk:	if 1, video data is fetched at rising edge
+ * @inv_hsync:	if HSYNC polarity is inversed
+ * @inv_vsync:	if VSYNC polarity is inversed
+ * @inv_vden:	if VDEN polarity is inversed
+*/
+struct s3cfb_lcd_polarity {
+	int	rise_vclk;
+	int	inv_hsync;
+	int	inv_vsync;
+	int	inv_vden;
+};
+
+/*
+ * struct s3cfb_lcd_timing
+ * @h_fp:	horizontal front porch
+ * @h_bp:	horizontal back porch
+ * @h_sw:	horizontal sync width
+ * @v_fp:	vertical front porch
+ * @v_fpe:	vertical front porch for even field
+ * @v_bp:	vertical back porch
+ * @v_bpe:	vertical back porch for even field
+*/
 struct s3cfb_lcd_timing {
 	int	h_fp;
 	int	h_bp;
@@ -98,62 +151,111 @@ struct s3cfb_lcd_timing {
 	int	v_sw;
 };
 
-struct s3cfb_lcd_polarity {
-	int rise_vclk;
-	int inv_hsync;
-	int inv_vsync;
-	int inv_vden;
-};
-
+/*
+ * struct s3cfb_lcd
+ * @width:		horizontal resolution
+ * @height:		vertical resolution
+ * @p_width:	        width of lcd in mm
+ * @p_height:	        height of lcd in mm
+ * @bpp:		bits per pixel
+ * @freq:		vframe frequency
+ * @timing:		timing values
+ * @polarity:		polarity settings
+ * @init_ldi:		pointer to LDI init function
+ *
+*/
 struct s3cfb_lcd {
 	int	width;
 	int	height;
+	int	p_width;
+	int	p_height;
 	int	bpp;
 	int	freq;
 	struct	s3cfb_lcd_timing timing;
 	struct	s3cfb_lcd_polarity polarity;
+
 	void	(*init_ldi)(void);
 	void	(*deinit_ldi)(void);
 };
 
-struct s3cfb_fimd_desc {
-	int			state;
-	int			dual;
-	struct s3cfb_global	*fbdev[FIMD_MAX];
-};
-
-struct s3cfb_global {
-	void __iomem		*regs;
-	struct mutex		lock;
-	struct device		*dev;
-	struct clk		*clock;
-	int			irq;
-	wait_queue_head_t	wq;
-	unsigned int		wq_count;
-	struct fb_info		**fb;
-
-	atomic_t		enabled_win;
-	enum s3cfb_output_t	output;
-	enum s3cfb_rgb_mode_t	rgb_mode;
-	struct s3cfb_lcd	*lcd;
-};
-
+/*
+ * struct s3cfb_window
+ * @id:			window id
+ * @enabled:		if enabled
+ * @x:			left x of start offset
+ * @y:			top y of start offset
+ * @path:		data path (dma/fifo)
+ * @local_channel:	local channel for fifo path (0/1)
+ * @dma_burst:		dma burst length (4/8/16)
+ * @unpacked:		if unpacked format is
+ * @pseudo_pal:		pseudo palette for fb layer
+ * @alpha:		alpha blending structure
+ * @chroma:		chroma key structure
+*/
 struct s3cfb_window {
 	int			id;
 	int			enabled;
-	atomic_t		in_use;
+	int			in_use;
 	int			x;
 	int			y;
 	enum			s3cfb_data_path_t path;
 	enum			s3cfb_mem_owner_t owner;
+	unsigned int	other_mem_addr;
+	unsigned int	other_mem_size;
 	int			local_channel;
 	int			dma_burst;
 	unsigned int		pseudo_pal[16];
 	struct			s3cfb_alpha alpha;
 	struct			s3cfb_chroma chroma;
-	int			power_state;
 };
 
+/*
+ * struct s3cfb_global
+ *
+ * @fb:			pointer to fb_info
+ * @enabled:		if signal output enabled
+ * @dsi:		if mipi-dsim enabled
+ * @interlace:		if interlace format is used
+ * @output:		output path (RGB/I80/Etc)
+ * @rgb_mode:		RGB mode
+ * @lcd:		pointer to lcd structure
+*/
+struct s3cfb_global {
+	/* general */
+	void __iomem		*regs;
+	struct mutex		lock;
+	struct device		*dev;
+	struct clk		*clock;
+	struct regulator	*regulator;
+	int			irq;
+	struct fb_info		**fb;
+	struct completion	fb_complete;
+
+	/* fimd */
+	int			enabled;
+	int			dsi;
+	int			interlace;
+	enum s3cfb_output_t	output;
+	enum s3cfb_rgb_mode_t	rgb_mode;
+	struct s3cfb_lcd	*lcd;
+
+#ifdef CONFIG_HAS_WAKELOCK
+	struct early_suspend	early_suspend;
+	struct wake_lock	idle_lock;
+#endif
+
+#ifdef CONFIG_CPU_FREQ
+	struct notifier_block	freq_transition;
+	struct notifier_block	freq_policy;
+#endif
+
+};
+
+
+/*
+ * S T R U C T U R E S  F O R  C U S T O M  I O C T L S
+ *
+*/
 struct s3cfb_user_window {
 	int x;
 	int y;
@@ -173,7 +275,22 @@ struct s3cfb_user_chroma {
 	unsigned char	blue;
 };
 
-/* IOCTL commands */
+struct s3cfb_next_info {
+	unsigned int phy_start_addr;
+	unsigned int xres;		/* visible resolution*/
+	unsigned int yres;
+	unsigned int xres_virtual;	/* virtual resolution*/
+	unsigned int yres_virtual;
+	unsigned int xoffset;		/* offset from virtual to visible */
+	unsigned int yoffset;		/* resolution */
+	unsigned int lcd_offset_x;
+	unsigned int lcd_offset_y;
+};
+
+/*
+ * C U S T O M  I O C T L S
+ *
+*/
 #define S3CFB_WIN_POSITION		_IOW('F', 203, \
 						struct s3cfb_user_window)
 #define S3CFB_WIN_SET_PLANE_ALPHA	_IOW('F', 204, \
@@ -185,66 +302,28 @@ struct s3cfb_user_chroma {
 #define S3CFB_GET_LCD_WIDTH		_IOR('F', 302, int)
 #define S3CFB_GET_LCD_HEIGHT		_IOR('F', 303, int)
 #define S3CFB_SET_WRITEBACK		_IOW('F', 304, u32)
-#define S3CFB_SET_WIN_ON		_IOW('F', 305, u32)
-#define S3CFB_SET_WIN_OFF		_IOW('F', 306, u32)
-#define S3CFB_SET_WIN_PATH		_IOW('F', 307, \
+#define S3CFB_GET_CURR_FB_INFO		_IOR('F', 305, struct s3cfb_next_info)
+#define S3CFB_SET_WIN_ON		_IOW('F', 306, u32)
+#define S3CFB_SET_WIN_OFF		_IOW('F', 307, u32)
+#define S3CFB_SET_WIN_PATH		_IOW('F', 308, \
 						enum s3cfb_data_path_t)
-#define S3CFB_SET_WIN_ADDR		_IOW('F', 308, unsigned long)
-#define S3CFB_SET_WIN_MEM		_IOW('F', 309, \
+#define S3CFB_SET_WIN_ADDR		_IOW('F', 309, unsigned long)
+#define S3CFB_SET_WIN_MEM		_IOW('F', 310, \
 						enum s3cfb_mem_owner_t)
 
-extern struct fb_ops			s3cfb_ops;
-extern inline struct s3cfb_global	*get_fimd_global(int id);
-
-/* S3CFB */
+/*
+ * E X T E R N S
+ *
+*/
+extern int soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
+extern void s3cfb_set_lcd_info(struct s3cfb_global *ctrl);
 extern struct s3c_platform_fb *to_fb_plat(struct device *dev);
-extern int s3cfb_draw_logo(struct fb_info *fb);
-extern int s3cfb_enable_window(struct s3cfb_global *fbdev, int id);
-extern int s3cfb_disable_window(struct s3cfb_global *fbdev, int id);
-extern int s3cfb_update_power_state(struct s3cfb_global *fbdev, int id,
-				int state);
-extern int s3cfb_init_global(struct s3cfb_global *fbdev);
-extern int s3cfb_map_video_memory(struct s3cfb_global *fbdev,
-				struct fb_info *fb);
-extern int s3cfb_map_default_video_memory(struct fb_info *fb);
-extern int s3cfb_unmap_video_memory(struct s3cfb_global *fbdev,
-				struct fb_info *fb);
-extern int s3cfb_unmap_default_video_memory(struct s3cfb_global *fbdev,
-					struct fb_info *fb);
-extern int s3cfb_set_bitfield(struct fb_var_screeninfo *var);
-extern int s3cfb_set_alpha_info(struct fb_var_screeninfo *var,
-				struct s3cfb_window *win);
-extern int s3cfb_check_var(struct fb_var_screeninfo *var, struct fb_info *fb);
-extern int s3cfb_check_var_window(struct s3cfb_global *fbdev,
-			struct fb_var_screeninfo *var, struct fb_info *fb);
-extern void s3cfb_set_win_params(struct s3cfb_global *fbdev, int id);
-extern int s3cfb_set_par_window(struct s3cfb_global *fbdev, struct fb_info *fb);
-extern int s3cfb_set_par(struct fb_info *fb);
-extern int s3cfb_init_fbinfo(struct s3cfb_global *fbdev, int id);
-extern int s3cfb_alloc_framebuffer(struct s3cfb_global *fbdev);
-extern int s3cfb_open(struct fb_info *fb, int user);
-extern int s3cfb_release_window(struct fb_info *fb);
-extern int s3cfb_release(struct fb_info *fb, int user);
-extern int s3cfb_pan_display(struct fb_var_screeninfo *var,
-				struct fb_info *fb);
-extern int s3cfb_blank(int blank_mode, struct fb_info *fb);
-extern inline unsigned int __chan_to_field(unsigned int chan,
-					struct fb_bitfield bf);
-extern int s3cfb_setcolreg(unsigned int regno, unsigned int red,
-			unsigned int green, unsigned int blue,
-			unsigned int transp, struct fb_info *fb);
-extern int s3cfb_cursor(struct fb_info *fb, struct fb_cursor *cursor);
-extern int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg);
-extern int s3cfb_enable_localpath(struct s3cfb_global *fbdev, int id);
-extern int s3cfb_disable_localpath(struct s3cfb_global *fbdev, int id);
-
-/* FIMD */
-extern int s3cfb_clear_interrupt(struct s3cfb_global *ctrl);
-extern int s3cfb_display_on(struct s3cfb_global *ctrl);
+extern void s3cfb_check_line_count(struct s3cfb_global *ctrl);
 extern int s3cfb_set_output(struct s3cfb_global *ctrl);
 extern int s3cfb_set_display_mode(struct s3cfb_global *ctrl);
 extern int s3cfb_display_on(struct s3cfb_global *ctrl);
 extern int s3cfb_display_off(struct s3cfb_global *ctrl);
+extern int s3cfb_frame_off(struct s3cfb_global *ctrl);
 extern int s3cfb_set_clock(struct s3cfb_global *ctrl);
 extern int s3cfb_set_polarity(struct s3cfb_global *ctrl);
 extern int s3cfb_set_timing(struct s3cfb_global *ctrl);
@@ -253,6 +332,9 @@ extern int s3cfb_set_global_interrupt(struct s3cfb_global *ctrl, int enable);
 extern int s3cfb_set_vsync_interrupt(struct s3cfb_global *ctrl, int enable);
 extern int s3cfb_get_vsync_interrupt(struct s3cfb_global *ctrl);
 extern int s3cfb_set_fifo_interrupt(struct s3cfb_global *ctrl, int enable);
+extern int s3cfb_clear_interrupt(struct s3cfb_global *ctrl);
+extern int s3cfb_channel_localpath_on(struct s3cfb_global *ctrl, int id);
+extern int s3cfb_channel_localpath_off(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_window_on(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_window_off(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_win_map_on(struct s3cfb_global *ctrl, int id, int color);
@@ -264,10 +346,28 @@ extern int s3cfb_set_window_size(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_buffer_address(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_buffer_size(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_chroma_key(struct s3cfb_global *ctrl, int id);
-extern int s3cfb_channel_localpath_on(struct s3cfb_global *ctrl, int id);
-extern int s3cfb_channel_localpath_off(struct s3cfb_global *ctrl, int id);
+#if defined(CONFIG_FB_S3C_MDNIE)
+extern int s3cfb_ielcd_enable(struct s3cfb_global *ctrl, int en);
+#endif
 
-/* LCD */
-extern void s3cfb_set_lcd_info(struct s3cfb_global *ctrl);
+#ifdef CONFIG_HAS_WAKELOCK
+#ifdef CONFIG_HAS_EARLYSUSPEND
+extern void s3cfb_early_suspend(struct early_suspend *h);
+extern void s3cfb_late_resume(struct early_suspend *h);
+#endif
+#endif
+
+#if defined(CONFIG_FB_S3C_TL2796)
+extern void tl2796_ldi_init(void);
+extern void tl2796_ldi_enable(void);
+extern void tl2796_ldi_disable(void);
+extern void lcd_cfg_gpio_early_suspend(void);
+extern void lcd_cfg_gpio_late_resume(void);
+#endif
+
+#if defined (CONFIG_FB_S3C_LVDS)
+void lms700_powerup(void);
+void lms700_powerdown(void);
+#endif
 
 #endif /* _S3CFB_H */

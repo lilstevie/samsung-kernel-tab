@@ -252,6 +252,16 @@ config MFD_MAX8925
 	  accessing the device, additional drivers must be enabled in order
 	  to use the functionality of the device.
 
+config MFD_MAX8998
+	bool "Maxim Semiconductor MAX8998 PMIC Support"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  Say yes here to support for Maxim Semiconductor MAX8998. This is
+	  a Power Management IC. This driver provies common support for
+	  accessing the device, additional drivers must be enabled in order
+	  to use the functionality of the device.
+
 config MFD_WM8400
 	tristate "Support Wolfson Microelectronics WM8400"
 	select MFD_CORE
@@ -355,14 +365,6 @@ config MFD_PCF50633
 	  This core driver provides register access and IRQ handling
 	  facilities, and registers devices for the various functions
 	  so that function-specific drivers can bind to them.
-
-config MFD_S5M8751
-	bool "Samsung Semiconductor S5M8751 PMIC Support with AUDIO DAC"
-	select MFD_CORE
-	depends on I2C
-	help
-	  S5M8751 is an advanced power management with AUDIO DAC. This option
-	  enables chip support for the S5M8751 with I2C as the control interface.
 
 config MFD_MC13783
 	tristate "Support Freescale MC13783"

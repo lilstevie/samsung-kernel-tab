@@ -22,7 +22,6 @@
  * Additional work by Herbert Pötzl <herbert@13thfloor.at> and
  * Harald Welte <laforge@openmoko.org>
  */
-#define DEBUG
 
 #include <linux/errno.h>
 #include <linux/kernel.h>

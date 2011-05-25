@@ -1149,21 +1149,7 @@ config RAMOOPS
 config S3C_MEM
 	bool "Support for /dev/s3c-mem"
 	default y
-	---help---
-	  If you do say Y here, you can allocate physically linear memories from system memory.
-	  And you can share the memory at the other process using re-allocation ioctl.
-
-	  If unsure, say Y.
-
-config S5P_VMEM
-	bool "Contiguous Virtual Memory Allocator for S5PV310(/dev/s5p-vmem)"
-	default y
-	---help---
-	  Contiguous virtual memory allocator for Sys.MMUs in S5PV310. Say y if
-	  you want to allocate a memory space for a peripheral device with
-	  Sys.MMU.
-
-	  If unsure, say Y.
-
+	help
+	  you do say Y here, you can allocate physically linear memory
 endmenu
 

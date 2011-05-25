@@ -93,8 +93,18 @@ static void mmc_flush_scheduled_work(void)
  */
 void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 {
-	struct mmc_command *cmd = mrq->cmd;
-	int err = cmd->error;
+	struct mmc_command *cmd;
+	int err;
+
+	if(mrq == NULL)
+		return;
+
+	cmd = mrq->cmd;
+
+	if(cmd == NULL)
+		return;
+
+	err = cmd->error;
 
 	if (err && cmd->retries && mmc_host_is_spi(host)) {
 		if (cmd->resp[0] & R1_SPI_ILLEGAL_COMMAND)
@@ -981,6 +991,7 @@ static inline void mmc_bus_put(struct mmc_host *host)
 int mmc_resume_bus(struct mmc_host *host)
 {
 	unsigned long flags;
+	int err = 0;
 
 	if (!mmc_bus_needs_resume(host))
 		return -EINVAL;
@@ -995,11 +1006,21 @@ int mmc_resume_bus(struct mmc_host *host)
 	if (host->bus_ops && !host->bus_dead) {
 		mmc_power_up(host);
 		BUG_ON(!host->bus_ops->resume);
-		host->bus_ops->resume(host);
+		err = host->bus_ops->resume(host);
 	}
 
-	if (host->bus_ops->detect && !host->bus_dead)
-		host->bus_ops->detect(host);
+#ifdef CONFIG_MACH_P1
+	if (!err) {
+#endif
+		if (host->bus_ops->detect && !host->bus_dead)
+			host->bus_ops->detect(host);
+#ifdef CONFIG_MACH_P1
+	} else {
+		printk(KERN_WARNING "%s: error %d during resume "
+	                                "(card was removed?)\n",
+	                                mmc_hostname(host), err);	
+	}
+#endif
 
 	mmc_bus_put(host);
 	printk("%s: Deferred resume completed\n", mmc_hostname(host));
@@ -1104,8 +1125,18 @@ void mmc_rescan(struct work_struct *work)
 	mmc_bus_get(host);
 
 	/* if there is a card registered, check whether it is still present */
-	if ((host->bus_ops != NULL) && host->bus_ops->detect && !host->bus_dead)
-		host->bus_ops->detect(host);
+	if ((host->bus_ops != NULL) && host->bus_ops->detect && !host->bus_dead) {
+		if(host->ops->get_cd && host->ops->get_cd(host) == 0) {
+			if(host->bus_ops->remove)
+				host->bus_ops->remove(host);
+
+			mmc_claim_host(host);
+			mmc_detach_bus(host);
+			mmc_release_host(host);
+		}
+		else
+			host->bus_ops->detect(host);
+	}
 
 	/* If the card was removed the bus will be marked
 	 * as dead - extend the wakelock so userspace
@@ -1180,10 +1211,14 @@ void mmc_rescan(struct work_struct *work)
 	mmc_power_off(host);
 
 out:
+#if defined(CONFIG_MACH_P1)
+        wake_lock_timeout(&mmc_delayed_work_wake_lock, 3*HZ);
+#else
 	if (extend_wakelock)
 		wake_lock_timeout(&mmc_delayed_work_wake_lock, HZ / 2);
 	else
 		wake_unlock(&mmc_delayed_work_wake_lock);
+#endif
 
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
@@ -1304,6 +1339,13 @@ int mmc_card_can_sleep(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_card_can_sleep);
 
+void mmc_card_adjust_cfg(struct mmc_host *host, int rw)
+{
+	if(host->ops->adjust_cfg)
+		host->ops->adjust_cfg(host, rw);
+}
+EXPORT_SYMBOL(mmc_card_adjust_cfg);
+
 #ifdef CONFIG_PM
 
 /**
@@ -1383,7 +1425,6 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		notify_block, struct mmc_host, pm_notify);
 	unsigned long flags;
 
-
 	switch (mode) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
@@ -1420,7 +1461,8 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
-		mmc_detect_change(host, 0);
+		if (!host->card || host->card->type != MMC_TYPE_SDIO) 
+			mmc_detect_change(host, 0);
 
 	}
 

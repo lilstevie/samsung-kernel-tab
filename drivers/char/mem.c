@@ -34,10 +34,6 @@
 # include <linux/efi.h>
 #endif
 
-#ifdef CONFIG_S5P_VMEM
-# include "s5p_vmem.h"
-#endif
-
 static inline unsigned long size_inside_page(unsigned long start,
 					     unsigned long size)
 {
@@ -832,17 +828,8 @@ extern int s3c_mem_mmap(struct file* filp, struct vm_area_struct *vma);
 extern int s3c_mem_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
 
 static const struct file_operations s3c_mem_fops = {
-	.ioctl  = s3c_mem_ioctl,
-	.mmap   = s3c_mem_mmap,
-};
-#endif
-
-#ifdef CONFIG_S5P_VMEM
-static const struct file_operations s5p_vmem_fops = {
-	.ioctl  = s5p_vmem_ioctl,
-	.mmap   = s5p_vmem_mmap,
-	.open	= s5p_vmem_open,
-	.release = s5p_vmem_release
+	.ioctl	= s3c_mem_ioctl,
+	.mmap	= s3c_mem_mmap,
 };
 #endif
 
@@ -898,12 +885,6 @@ static const struct memdev {
 #ifdef CONFIG_S3C_MEM
 	[13] = {"s3c-mem", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, &s3c_mem_fops},
 #endif
-#ifdef CONFIG_S5P_VMEM
-	[14] = {"s5p-vmem",
-		S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
-		&s5p_vmem_fops},
-#endif
-
 };
 
 static int memory_open(struct inode *inode, struct file *filp)
