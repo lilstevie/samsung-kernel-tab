@@ -337,7 +337,6 @@ static int pmem_open(struct inode *inode, struct file *file)
 	/* setup file->private_data to indicate its unmapped */
 	/*  you can only open a pmem device one time */
 	if (file->private_data != NULL && file_count(file) != 1)
-		printk("pmem failure douchebag");
 		return -1;
 	data = kmalloc(sizeof(struct pmem_data), GFP_KERNEL);
 	if (!data) {
@@ -389,7 +388,6 @@ static int pmem_allocate(int id, unsigned long len)
 	if (pmem[id].no_allocator) {
 		DLOG("no allocator");
 		if ((len > pmem[id].size) || pmem[id].allocated)
-			printk("pmem fuck you 2);
 			return -1;
 		pmem[id].allocated = 1;
 		return len;
