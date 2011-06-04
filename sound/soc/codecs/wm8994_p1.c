@@ -21,6 +21,9 @@
 #include <mach/gpio-p1.h> 
 #include "wm8994.h"
 #include "wm8994_def.h"
+#ifdef CONFIG_SND_VOODOO
+	#include "wm8994_voodoo.h"
+#endif
 
 #define SUBJECT "wm8994_p1.c"
 
@@ -1258,6 +1261,10 @@ void wm8994_record_main_mic(struct snd_soc_codec *codec)
 	{
 		msleep(300);
 	}
+	
+	#ifdef CONFIG_SND_VOODOO_RECORD_PRESETS
+		voodoo_hook_record_main_mic();
+	#endif
 }
 
 void wm8994_record_bluetooth(struct snd_soc_codec *codec)
