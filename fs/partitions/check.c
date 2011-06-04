@@ -21,6 +21,7 @@
 #include <linux/ctype.h>
 #include <linux/genhd.h>
 #include <linux/blktrace_api.h>
+#include <linux/vmalloc.h>
 
 #include "check.h"
 
@@ -162,8 +163,14 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 	int i, res, err;
 
 	state = kzalloc(sizeof(struct parsed_partitions), GFP_KERNEL);
+	if (!state) {
+		state = (struct parsed_partitions *)vmalloc(sizeof(struct parsed_partitions));
 	if (!state)
 		return NULL;
+		memset(state, 0, sizeof(struct parsed_partitions));
+		state->is_kzalloc = false;
+	} else
+		state->is_kzalloc = true;
 
 	state->bdev = bdev;
 	disk_name(hd, 0, state->name);
@@ -196,7 +203,12 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 		printk(" unknown partition table\n");
 	else if (warn_no_part)
 		printk(" unable to read partition table\n");
+
+	if (state->is_kzalloc)
 	kfree(state);
+	else
+		vfree(state);
+
 	return ERR_PTR(res);
 }
 
@@ -356,6 +368,8 @@ static int part_uevent(struct device *dev, struct kobj_uevent_env *env)
 	struct hd_struct *part = dev_to_part(dev);
 
 	add_uevent_var(env, "PARTN=%u", part->partno);
+	if (part->partition_name)
+		add_uevent_var(env, "PARTNAME=%s", part->partition_name);
 	return 0;
 }
 
@@ -589,7 +603,11 @@ int rescan_partitions(struct gendisk *disk, struct block_device *bdev)
 	int p, highest, res;
 rescan:
 	if (state && !IS_ERR(state)) {
+		if (state->is_kzalloc)
 		kfree(state);
+		else
+			vfree(state);
+
 		state = NULL;
 	}
 
@@ -699,7 +717,12 @@ rescan:
 			md_autodetect_dev(part_to_dev(part)->devt);
 #endif
 	}
+
+	if (state->is_kzalloc)
 	kfree(state);
+	else
+		vfree(state);
+
 	return 0;
 }
 
